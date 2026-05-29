@@ -232,12 +232,19 @@ function createStressSchema(count: number): VbenFormSchema[] {
     {
       component: 'Select',
       asyncOptions: {
+        clearValueOnDepsChange: true,
         dependsOn: ['async.parent'],
+        keepPreviousData: true,
+        queryKey: (values) => [
+          'complex-linkage-async-child',
+          getFormValue(values, 'async.parent') || 'fast',
+        ],
         request: async (values) => {
           const parent = String(getFormValue(values, 'async.parent') || 'fast');
           await sleep(parent === 'slow' ? 550 : 80);
           return asyncOptionsMap[parent] ?? asyncOptionsMap.fast ?? [];
         },
+        staleTime: 30_000,
       },
       componentProps: {
         allowClear: true,
@@ -453,6 +460,11 @@ async function runAsyncRaceProbe() {
   message.success(`远程 options 竞态探针完成：${duration}ms`);
 }
 
+async function refreshRemoteOptions() {
+  await formApi.refreshOptions('async.child');
+  message.success('已刷新远程子级 options');
+}
+
 async function validateLargeForm() {
   const start = performance.now();
   const result = await formApi.validate();
@@ -491,6 +503,7 @@ async function validateLargeForm() {
           <Button @click="runBatchSetValues">批量 setValues</Button>
           <Button @click="runNestedLoopProbe">嵌套写回探针</Button>
           <Button @click="runAsyncRaceProbe">远程竞态探针</Button>
+          <Button @click="refreshRemoteOptions">刷新远程 options</Button>
           <Button @click="validateLargeForm">校验性能</Button>
           <Button @click="refreshOutput">读取 values</Button>
         </Space>

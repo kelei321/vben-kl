@@ -25,6 +25,8 @@ function extractZodDefault(rule: undefined | ZodTypeAny) {
 
 function inferEmptyValue(schema: FormSchema) {
   if (
+    schema.component === 'Input' ||
+    schema.component === 'InputPassword' ||
     schema.component === 'VbenInput' ||
     schema.component === 'VbenInputPassword'
   ) {

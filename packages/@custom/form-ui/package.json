@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@tanstack/vue-form": "catalog:",
+    "@tanstack/vue-query": "catalog:",
     "@tanstack/vue-store": "catalog:",
     "@vben-core/composables": "workspace:*",
     "@vben-core/icons": "workspace:*",

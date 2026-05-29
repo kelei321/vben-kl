@@ -26,6 +26,10 @@ import { buildZodSchema } from '../zod/build-schema';
 import { zodErrorToFieldErrors } from '../zod/errors';
 import { isZodSchema } from '../zod/rules';
 import { applySchemaValueTransforms } from '../zod/transform';
+import {
+  getAsyncOptionsQueryClient,
+  getAsyncOptionsQueryKeyPrefix,
+} from './async-options';
 import { resolveFieldNamePath } from './field-name';
 
 function createDeferred() {
@@ -80,6 +84,7 @@ export class FormApi {
   private componentRefMap: Map<string, unknown> = new Map();
   private latestSubmissionValues: null | Recordable<any> = null;
   private mountedDeferred = createDeferred();
+  private optionsQueryKeyMap: Map<string, unknown[]> = new Map();
   private prevState: null | VbenFormProps = null;
 
   constructor(options: VbenFormProps = {}) {
@@ -291,10 +296,24 @@ export class FormApi {
     );
   }
 
-  refreshOptions(_fieldName: string) {
-    console.warn(
-      'refreshOptions will be enabled after asyncOptions remote option cache is connected.',
-    );
+  async refreshOptions(fieldName?: string) {
+    const queryClient = getAsyncOptionsQueryClient();
+    if (fieldName) {
+      const queryKey = this.optionsQueryKeyMap.get(fieldName);
+      if (!queryKey) {
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey });
+      return;
+    }
+
+    await queryClient.invalidateQueries({
+      queryKey: [getAsyncOptionsQueryKeyPrefix()],
+    });
+  }
+
+  registerOptionsQuery(fieldName: string, queryKey: unknown[]) {
+    this.optionsQueryKeyMap.set(fieldName, queryKey);
   }
 
   async removeSchemaByFields(fields: string[]) {
@@ -450,9 +469,14 @@ export class FormApi {
   unmount() {
     this.form?.reset?.();
     this.componentRefMap = new Map();
+    this.optionsQueryKeyMap = new Map();
     this.latestSubmissionValues = null;
     this.isMounted = false;
     this.mountedDeferred = createDeferred();
+  }
+
+  unregisterOptionsQuery(fieldName: string) {
+    this.optionsQueryKeyMap.delete(fieldName);
   }
 
   updateSchema(schema: Partial<FormSchema>[]) {

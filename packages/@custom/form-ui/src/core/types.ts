@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/vue-query';
 import type { ZodTypeAny } from 'zod';
 
 import type { Component, HtmlHTMLAttributes, Ref } from 'vue';
@@ -161,10 +162,16 @@ export type FormValueFormat = (
 
 interface FormSchemaBody extends Omit<FormCommonConfig, 'componentProps'> {
   asyncOptions?: {
+    clearValueOnDepsChange?: boolean;
     dependsOn?: string[];
+    enabled?: ((values: Recordable) => boolean) | boolean;
+    gcTime?: number;
     immediate?: boolean;
+    keepPreviousData?: boolean;
     labelField?: string;
+    queryKey?: ((values: Recordable) => unknown[]) | string | unknown[];
     request: (params: Recordable) => Promise<any[]>;
+    staleTime?: number;
     valueField?: string;
   };
   clearWhenHidden?: boolean;
@@ -306,6 +313,10 @@ export type ExtendedFormApi = FormApi & {
 export interface VbenFormAdapterOptions<
   T extends BaseFormComponentType = BaseFormComponentType,
 > {
+  asyncOptions?: {
+    queryClient?: QueryClient;
+    queryKeyPrefix?: string;
+  };
   components?: Partial<Record<T, Component>>;
   config?: {
     baseModelPropName?: string;

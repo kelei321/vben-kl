@@ -26,6 +26,14 @@ import {
   isString,
 } from '@vben-core/shared/utils';
 
+import { keepPreviousData, useQuery } from '@tanstack/vue-query';
+
+import {
+  buildAsyncOptionsQueryKey,
+  getAsyncOptionsQueryClient,
+  normalizeAsyncOptions,
+  resolveAsyncOptionsDependsOnValues,
+} from '../core/async-options';
 import { resolveFieldNamePath } from '../core/field-name';
 import { injectComponentRefMap } from '../use-form-context';
 import { isZodSchema } from '../zod/rules';
@@ -44,9 +52,6 @@ const { componentBindEventMap, componentMap, isVertical } = useFormContext();
 const formRenderProps = injectRenderFormProps();
 const fieldComponentRef = useTemplateRef<HTMLInputElement>('fieldComponentRef');
 const collapseOpen = ref(!props.defaultCollapsed);
-const asyncOptions = ref<any[]>([]);
-const asyncOptionsLoading = ref(false);
-let asyncOptionsRequestId = 0;
 
 const formApi = computed(() => formRenderProps.form);
 const controller = computed(() => formRenderProps.formApi);
@@ -119,6 +124,50 @@ const currentRules = computed(() =>
 
 const visible = computed(() => !props.hide && isIf.value && isShow.value);
 
+const asyncOptionsQueryKey = computed(() =>
+  buildAsyncOptionsQueryKey(props.fieldName, values.value, props.asyncOptions),
+);
+
+const asyncOptionsDependsOnValues = computed(() =>
+  resolveAsyncOptionsDependsOnValues(
+    values.value,
+    props.asyncOptions?.dependsOn ?? [],
+  ),
+);
+
+const asyncOptionsEnabled = computed(() => {
+  const config = props.asyncOptions;
+  if (!config || config.immediate === false || !visible.value) {
+    return false;
+  }
+  if (typeof config.enabled === 'function') {
+    return !!config.enabled(values.value);
+  }
+  return config.enabled ?? true;
+});
+
+const asyncOptionsQuery = useQuery(
+  computed(() => ({
+    enabled: asyncOptionsEnabled.value,
+    gcTime: props.asyncOptions?.gcTime,
+    placeholderData: props.asyncOptions?.keepPreviousData
+      ? keepPreviousData
+      : undefined,
+    queryFn: async () => props.asyncOptions?.request(values.value) ?? [],
+    queryKey: asyncOptionsQueryKey.value,
+    staleTime: props.asyncOptions?.staleTime,
+  })),
+  getAsyncOptionsQueryClient(),
+);
+
+const resolvedAsyncOptions = computed(() =>
+  normalizeAsyncOptions(
+    asyncOptionsQuery.isError.value ? [] : asyncOptionsQuery.data.value,
+    props.asyncOptions?.labelField,
+    props.asyncOptions?.valueField,
+  ),
+);
+
 const shouldRequired = computed(() => {
   if (!visible.value) {
     return false;
@@ -183,7 +232,10 @@ const computedProps = computed<MaybeComponentProps>(() => {
     ...finalComponentProps,
     ...dynamicComponentProps.value,
     ...(props.asyncOptions
-      ? { loading: asyncOptionsLoading.value, options: asyncOptions.value }
+      ? {
+          loading: asyncOptionsQuery.isFetching.value,
+          options: resolvedAsyncOptions.value,
+        }
       : {}),
     ...(isLoading.value ? { loading: true } : {}),
   };
@@ -209,43 +261,37 @@ watch(
 );
 
 watch(
-  () =>
-    props.asyncOptions?.dependsOn?.map((field) => get(values.value, field)) ??
-    [],
-  async () => {
-    const config = props.asyncOptions;
-    const requestId = ++asyncOptionsRequestId;
-    if (!config || config.immediate === false) {
-      asyncOptions.value = [];
-      asyncOptionsLoading.value = false;
+  () => asyncOptionsQuery.error.value,
+  (error) => {
+    if (!error) {
       return;
     }
-    asyncOptionsLoading.value = true;
-    try {
-      const result = await config.request(values.value);
-      if (requestId !== asyncOptionsRequestId) {
-        return;
-      }
-      const labelField = config.labelField ?? 'label';
-      const valueField = config.valueField ?? 'value';
-      asyncOptions.value = result.map((item) => ({
-        ...item,
-        label: item?.[labelField] ?? item?.label,
-        value: item?.[valueField] ?? item?.value,
-      }));
-    } catch (error) {
-      if (requestId === asyncOptionsRequestId) {
-        asyncOptions.value = [];
-        console.error(
-          `[VbenForm] asyncOptions request failed: ${props.fieldName}`,
-          error,
-        );
-      }
-    } finally {
-      if (requestId === asyncOptionsRequestId) {
-        asyncOptionsLoading.value = false;
-      }
+    console.error(
+      `[VbenForm] asyncOptions request failed: ${props.fieldName}`,
+      error,
+    );
+  },
+);
+
+watch(
+  asyncOptionsDependsOnValues,
+  (_value, oldValue) => {
+    if (!oldValue || !props.asyncOptions?.clearValueOnDepsChange) {
+      return;
     }
+    updateValue(undefined);
+  },
+  { deep: true },
+);
+
+watch(
+  asyncOptionsQueryKey,
+  (queryKey) => {
+    if (props.asyncOptions) {
+      controller.value?.registerOptionsQuery?.(props.fieldName, queryKey);
+      return;
+    }
+    controller.value?.unregisterOptionsQuery?.(props.fieldName);
   },
   { deep: true, immediate: true },
 );
@@ -342,6 +388,7 @@ onUnmounted(() => {
   if (componentRefMap?.has(props.fieldName)) {
     componentRefMap.delete(props.fieldName);
   }
+  controller.value?.unregisterOptionsQuery?.(props.fieldName);
 });
 
 const exposedSlotProps = computed(() => ({

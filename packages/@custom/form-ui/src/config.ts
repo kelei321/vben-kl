@@ -19,6 +19,8 @@ import {
 } from '@vben-core/shadcn-ui';
 import { globalShareState } from '@vben-core/shared/global-state';
 
+import { configureAsyncOptions } from './core/async-options';
+
 const DEFAULT_MODEL_PROP_NAME = 'modelValue';
 
 export const DEFAULT_FORM_COMMON_CONFIG: FormCommonConfig = {
@@ -52,7 +54,14 @@ export function getCustomRule(name: string) {
 export function setupVbenForm<
   T extends BaseFormComponentType = BaseFormComponentType,
 >(options: VbenFormAdapterOptions<T> = {}) {
-  const { components: localComponents, config, defineRules } = options;
+  const {
+    asyncOptions,
+    components: localComponents,
+    config,
+    defineRules,
+  } = options;
+
+  configureAsyncOptions(asyncOptions);
 
   const {
     disabledOnChangeListener = true,
