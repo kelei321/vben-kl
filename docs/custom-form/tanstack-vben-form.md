@@ -20,14 +20,14 @@ packages/@custom/form-ui
 
 ## 3. 当前接入范围
 
-目前先接入 `apps/web-antd` 的 adapter：
+目前在 `apps/web-antd` 中使用独立 adapter 接入：
 
 ```ts
-// apps/web-antd/src/adapter/form.ts
+// apps/web-antd/src/adapter/custom-form.ts
 import { setupVbenForm, useVbenForm as useForm, z } from '@vben-custom/form-ui';
 ```
 
-原 `@vben/common-ui` 继续保留，核心登录页、通用组件等旧逻辑不受影响。
+原有业务页面继续通过 `apps/web-antd/src/adapter/form.ts` 使用 `@vben/common-ui`，核心登录页、通用组件和 vxe-table 等旧逻辑不受影响。
 
 ## 4. 目录结构
 
@@ -78,7 +78,7 @@ packages/@custom/form-ui/
 ## 5. 基础用法
 
 ```ts
-import { useVbenForm, z } from '#/adapter/form';
+import { useVbenForm, z } from '#/adapter/custom-form';
 
 const [Form, formApi] = useVbenForm({
   schema: [
@@ -179,7 +179,7 @@ setupVbenForm<ComponentType>({
       Checkbox: 'checked',
       Radio: 'checked',
       Switch: 'checked',
-      Upload: 'fileList',
+      Upload: 'modelValue',
     },
   },
   defineRules: {
@@ -194,7 +194,7 @@ setupVbenForm<ComponentType>({
 ```txt
 [value] + onUpdate:value
 [checked] + onUpdate:checked
-[fileList] + onUpdate:fileList
+[modelValue] + onUpdate:modelValue
 ```
 
 ## 9. Demo
@@ -292,11 +292,13 @@ http://localhost:5555/demos/custom-tanstack-form/basic
 | 滚动到错误 | `playground/scroll-to-error-test.vue` | scrollToFirstError、validateAndSubmitForm、validateField |
 | 可折叠项 | `playground/collapsible.vue` | VbenCollapsibleParams、动态参数、动态校验 |
 | 值格式化 | `playground/value-format.vue` | valueFormat、getValues 转换、submit 转换 |
+| 复杂联动压测 | `playground/complex-linkage.vue` | 大量字段、嵌套 fieldName、动态 rules、远程 options 竞态、trigger 写其他字段、trigger 写回自身防循环 |
 
 访问路径：
 
 ```txt
 /demos/custom-tanstack-form/basic
+/demos/custom-tanstack-form/complex-linkage
 ```
 
 ### 基础表单示例
@@ -377,6 +379,22 @@ formApi 方法 + store selector + 手动错误 + disabled 状态切换
 4. `setFieldError` 能手动设置错误，`clearValidate` 能清除。
 5. `setState` 能切换全局 disabled。
 6. Store 快照能显示当前字段数量、布局和 disabled 状态。
+
+### 复杂联动压测示例
+
+适合用来验证表单封装在复杂业务场景下的边界：
+
+```txt
+大量字段 + 嵌套 fieldName + 动态规则 + 远程 options 竞态 + trigger 写回自身
+```
+
+重点测试：
+
+1. 调整压测字段数并点击“重建 Schema”，观察字段数量、依赖字段数量和页面响应。
+2. 点击“批量 setValues”，验证 80~240 个字段批量写值不会卡死。
+3. 点击“嵌套写回探针”，验证 `dependencies.trigger` 写其他字段和写回自身不会形成 watch 循环。
+4. 点击“远程竞态探针”，验证快速切换远程 options 依赖时只保留最后一次请求结果。
+5. 点击“校验性能”，观察大 schema 下 Zod 校验耗时。
 
 ## 响应式安全优化
 

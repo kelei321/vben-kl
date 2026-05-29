@@ -123,7 +123,7 @@ export default function useDependencies(
 
       if (isFunction(componentProps)) {
         nextState.loading = true;
-        state.value = nextState;
+        state.value = { ...nextState };
         try {
           const resolvedComponentProps = await componentProps(
             formValues,
@@ -142,6 +142,7 @@ export default function useDependencies(
         } finally {
           if (currentEffectId === effectId) {
             nextState.loading = false;
+            state.value = { ...nextState };
           }
         }
       }
@@ -176,7 +177,7 @@ export default function useDependencies(
         schemaPatch.required = nextState.required;
       }
 
-      state.value = nextState;
+      state.value = { ...nextState };
 
       if (Object.keys(schemaPatch).length > 1) {
         controller.updateSchema?.([schemaPatch]);

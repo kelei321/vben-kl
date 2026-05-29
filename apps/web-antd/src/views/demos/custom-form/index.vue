@@ -9,6 +9,7 @@ import { Card } from 'ant-design-vue';
 import PlaygroundApi from './playground/api.vue';
 import PlaygroundBasic from './playground/basic.vue';
 import PlaygroundCollapsible from './playground/collapsible.vue';
+import PlaygroundComplexLinkage from './playground/complex-linkage.vue';
 import PlaygroundCustomLayout from './playground/custom-layout.vue';
 import PlaygroundCustom from './playground/custom.vue';
 import PlaygroundDynamic from './playground/dynamic.vue';
@@ -86,6 +87,13 @@ const examples = [
     description: 'fieldMappingTime、arrayToStringFields、valueFormat。',
     key: 'value-format',
     label: '值格式化',
+  },
+  {
+    component: PlaygroundComplexLinkage,
+    description:
+      '大量字段、嵌套 fieldName、动态规则、远程 options 竞态、trigger 写回自身防循环。',
+    key: 'complex-linkage',
+    label: '复杂联动压测',
   },
 ];
 

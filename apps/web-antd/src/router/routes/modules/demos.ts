@@ -94,6 +94,14 @@ const customFormExampleRoutes: RouteRecordRaw[] = [
     path: '/demos/custom-tanstack-form/value-format',
     component: customFormExampleComponent,
   },
+  {
+    meta: {
+      title: '复杂联动压测',
+    },
+    name: 'CustomTanStackFormComplexLinkageDemo',
+    path: '/demos/custom-tanstack-form/complex-linkage',
+    component: customFormExampleComponent,
+  },
 ];
 
 const routes: RouteRecordRaw[] = [

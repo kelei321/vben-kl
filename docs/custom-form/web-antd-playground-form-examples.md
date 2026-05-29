@@ -16,6 +16,7 @@
 /demos/custom-tanstack-form/scroll-to-error
 /demos/custom-tanstack-form/collapsible
 /demos/custom-tanstack-form/value-format
+/demos/custom-tanstack-form/complex-linkage
 ```
 
 所有示例都放在系统左侧菜单的 `演示 / Form 示例` 子菜单下，不再在页面内部使用 Tabs 或二级菜单切换。
@@ -33,12 +34,13 @@
 | 滚动到错误 | `scroll-to-error-test.vue` | scrollToFirstError、validateAndSubmitForm、validateField |
 | 可折叠项 | `collapsible.vue` | `VbenCollapsibleParams`、collapsible 字段、动态参数、动态校验 |
 | 值格式化 | `value-format.vue` | valueFormat、getValues 转换、submit 转换 |
+| 复杂联动压测 | `complex-linkage.vue` | 大量字段、嵌套 fieldName、动态 rules、远程 options 竞态、trigger 写其他字段、trigger 写回自身防循环 |
 
 ## 适配差异
 
 1. `playground` 中的 `RichEditor` 在当前 `web-antd` 适配器中未注册，本次示例使用 `Textarea` 作为替代。
 2. `Upload` 在 `web-antd` 组件适配器中对外暴露 `v-model:modelValue`，本次将 custom form 的 Upload 绑定字段从 `fileList` 调整为 `modelValue`，内部仍由 Upload 适配器映射到 Ant Design Vue 的 `fileList`。
-3. 示例均使用 `#/adapter/form`，因此实际走的是 `@vben-custom/form-ui`，没有修改 `packages/@core/ui-kit/form-ui`。
+3. 原有业务页面继续使用 `#/adapter/form`；本目录下的 custom form 示例均使用 `#/adapter/custom-form`，实际走的是 `@vben-custom/form-ui`，没有修改 `packages/@core/ui-kit/form-ui`。
 
 ## 本地验证建议
 
@@ -55,4 +57,5 @@ pnpm --filter @vben/web-antd dev
 - FormApi 操作和多表单合并提交；
 - 滚动到错误字段；
 - 可折叠参数组件在 QAT 开关下的参数变化；
-- valueFormat 拆分字段和时间戳转换。
+- valueFormat 拆分字段和时间戳转换；
+- 复杂联动压测中的批量 setValues、嵌套写回探针、远程 options 竞态探针和大 schema 校验耗时。
