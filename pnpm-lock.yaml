@@ -72,6 +72,9 @@ catalogs:
     '@tailwindcss/vite':
       specifier: ^4.3.0
       version: 4.3.0
+    '@tanstack/vue-form':
+      specifier: ^1.32.0
+      version: 1.33.0
     '@tanstack/vue-query':
       specifier: ^5.100.11
       version: 5.100.11
@@ -658,6 +661,9 @@ importers:
 
   apps/web-antd:
     dependencies:
+      '@vben-custom/form-ui':
+        specifier: workspace:*
+        version: link:../../packages/@custom/form-ui
       '@vben/access':
         specifier: workspace:*
         version: link:../../packages/effects/access
@@ -1604,6 +1610,43 @@ importers:
       vue:
         specifier: ^3.5.34
         version: 3.5.34(typescript@6.0.3)
+    devDependencies:
+      unplugin-vue:
+        specifier: 'catalog:'
+        version: 7.2.0(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.4)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(vue@3.5.34(typescript@6.0.3))(yaml@2.9.0)
+
+  packages/@custom/form-ui:
+    dependencies:
+      '@tanstack/vue-form':
+        specifier: 'catalog:'
+        version: 1.33.0(vue@3.5.34(typescript@6.0.3))
+      '@tanstack/vue-store':
+        specifier: 'catalog:'
+        version: 0.11.0(vue@3.5.34(typescript@6.0.3))
+      '@vben-core/composables':
+        specifier: workspace:*
+        version: link:../../@core/composables
+      '@vben-core/icons':
+        specifier: workspace:*
+        version: link:../../@core/base/icons
+      '@vben-core/shadcn-ui':
+        specifier: workspace:*
+        version: link:../../@core/ui-kit/shadcn-ui
+      '@vben-core/shared':
+        specifier: workspace:*
+        version: link:../../@core/base/shared
+      '@vben-core/typings':
+        specifier: workspace:*
+        version: link:../../@core/base/typings
+      '@vueuse/core':
+        specifier: 'catalog:'
+        version: 14.3.0(vue@3.5.34(typescript@6.0.3))
+      vue:
+        specifier: ^3.5.34
+        version: 3.5.34(typescript@6.0.3)
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       unplugin-vue:
         specifier: 'catalog:'
@@ -5336,9 +5379,21 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
+  '@tanstack/devtools-event-client@0.4.3':
+    resolution: {integrity: sha512-OZI6QyULw0FI0wjgmeYzCIfbgPsOEzwJtCpa69XrfLMtNXLGnz3d/dIabk7frg0TmHo+Ah49w5I4KC7Tufwsvw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  '@tanstack/form-core@1.33.0':
+    resolution: {integrity: sha512-AV4Pw9Dk4orFsuPBcDssfWMJFs+yMYBae7zZ4oTqrCf4ftNGQKxvrQRZeqKHG6A4TkiLeSvf2kzIjcVkrW7E6w==}
+
   '@tanstack/match-sorter-utils@8.19.4':
     resolution: {integrity: sha512-Wo1iKt2b9OT7d+YGhvEPD3DXvPv2etTusIMhMUoG7fbhmxcXCtIjJDEygy91Y2JFlwGyjqiBPRozme7UD8hoqg==}
     engines: {node: '>=12'}
+
+  '@tanstack/pacer-lite@0.1.1':
+    resolution: {integrity: sha512-y/xtNPNt/YeyoVxE/JCx+T7yjEzpezmbb+toK8DDD1P4m7Kzs5YR956+7OKexG3f8aXgC3rLZl7b1V+yNUSy5w==}
+    engines: {node: '>=18'}
 
   '@tanstack/query-core@5.100.11':
     resolution: {integrity: sha512-lmE0994apShXPj8CUxgx4ch5yUJhE9k/+tVwihBvPOyerACWdBocfFg24t8+0RhtlTd7tEgchDkhlCxNssvDxw==}
@@ -5348,6 +5403,11 @@ packages:
 
   '@tanstack/virtual-core@3.15.0':
     resolution: {integrity: sha512-0AwPGx0I8QxPYjAxShT/+z+ZOe9u8mW5rsXvivCTjRfRmz9a43+3mRyi4wwlyoUqOC56q/jatKa0Bh9M99BEHQ==}
+
+  '@tanstack/vue-form@1.33.0':
+    resolution: {integrity: sha512-ZdVDo4W2ohL27bCjsuNy/eQ8PHm9mOzCFNfI7d6GfhS5KHqehZ8TiR/y1eRJR/c1y3nucgSi6RfY6iLHBMVhAQ==}
+    peerDependencies:
+      vue: ^3.5.34
 
   '@tanstack/vue-query@5.100.11':
     resolution: {integrity: sha512-bU4uz7y/XorQzr7R008hR5+YI885rk5F8t5+UGIVfFEJL8eXeJUJLGZC+YOJR/SdoLjedxOMOPz6D6VH8Gh9Sg==}
@@ -14289,15 +14349,33 @@ snapshots:
       tailwindcss: 4.3.0
       vite: 8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.4)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(yaml@2.9.0)
 
+  '@tanstack/devtools-event-client@0.4.3': {}
+
+  '@tanstack/form-core@1.33.0':
+    dependencies:
+      '@tanstack/devtools-event-client': 0.4.3
+      '@tanstack/pacer-lite': 0.1.1
+      '@tanstack/store': 0.11.0
+
   '@tanstack/match-sorter-utils@8.19.4':
     dependencies:
       remove-accents: 0.5.0
+
+  '@tanstack/pacer-lite@0.1.1': {}
 
   '@tanstack/query-core@5.100.11': {}
 
   '@tanstack/store@0.11.0': {}
 
   '@tanstack/virtual-core@3.15.0': {}
+
+  '@tanstack/vue-form@1.33.0(vue@3.5.34(typescript@6.0.3))':
+    dependencies:
+      '@tanstack/form-core': 1.33.0
+      '@tanstack/vue-store': 0.11.0(vue@3.5.34(typescript@6.0.3))
+      vue: 3.5.34(typescript@6.0.3)
+    transitivePeerDependencies:
+      - '@vue/composition-api'
 
   '@tanstack/vue-query@5.100.11(vue@3.5.34(typescript@6.0.3))':
     dependencies:
