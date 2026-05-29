@@ -12,6 +12,7 @@
 /demos/custom-tanstack-form/custom
 /demos/custom-tanstack-form/custom-layout
 /demos/custom-tanstack-form/api
+/demos/custom-tanstack-form/array
 /demos/custom-tanstack-form/merge
 /demos/custom-tanstack-form/scroll-to-error
 /demos/custom-tanstack-form/collapsible
@@ -30,6 +31,7 @@
 | 自定义组件 | `custom.vue` | suffix、renderComponentContent、字段 slot、自定义组件、组合字段 |
 | 自定义布局 | `custom-layout.vue` | grid 自定义布局、跨列、起始列、隐藏 label、分割线 |
 | FormApi | `api.vue` | setValues、setFieldValue、getValues、validate、validateField、setState、schema 操作 |
+| 数组子表单 | `array.vue` | 对象数组子表单、行级增删复制排序、子字段校验、数组 FormApi |
 | 多表单合并 | `merge.vue` | `formApi.merge().submitAllForm()` 多表单合并提交 |
 | 滚动到错误 | `scroll-to-error-test.vue` | scrollToFirstError、validateAndSubmitForm、validateField |
 | 可折叠项 | `collapsible.vue` | `VbenCollapsibleParams`、collapsible 字段、动态参数、动态校验 |
@@ -55,6 +57,7 @@ pnpm --filter @vben/web-antd dev
 - 动态表单开关联动、动态规则、追加/删除/更新字段；
 - 自定义组件的 slot、组合字段与 `fieldMappingTime`；
 - FormApi 操作和多表单合并提交；
+- 数组子表单新增、复制、删除、排序、子字段必填和提交结构；
 - 滚动到错误字段；
 - 可折叠参数组件在 QAT 开关下的参数变化；
 - valueFormat 拆分字段和时间戳转换；

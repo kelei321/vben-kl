@@ -4,6 +4,10 @@ import { z } from 'zod';
 
 import { resolveFieldNamePath } from '../core/field-name';
 
+function isArrayIndex(segment: string | undefined) {
+  return segment !== undefined && /^\d+$/.test(segment);
+}
+
 export function setValueByPath(
   target: Record<string, any>,
   path: string,
@@ -15,16 +19,30 @@ export function setValueByPath(
     return;
   }
 
-  let current = target;
+  let current: any = target;
   for (let index = 0; index < pathSegments.length; index++) {
     const segment = pathSegments[index];
     if (!segment) continue;
     const isLast = index === pathSegments.length - 1;
     if (isLast) {
-      current[segment] = value;
+      if (Array.isArray(current) && isArrayIndex(segment)) {
+        current[Number(segment)] = value;
+      } else {
+        current[segment] = value;
+      }
       continue;
     }
-    current[segment] ??= {};
+
+    const nextSegment = pathSegments[index + 1];
+    const nextValue = isArrayIndex(nextSegment) ? [] : {};
+
+    if (Array.isArray(current) && isArrayIndex(segment)) {
+      current[Number(segment)] ??= nextValue;
+      current = current[Number(segment)];
+      continue;
+    }
+
+    current[segment] ??= nextValue;
     current = current[segment];
   }
 }

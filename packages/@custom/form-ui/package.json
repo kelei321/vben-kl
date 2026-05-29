@@ -7,7 +7,7 @@
   "scripts": {
     "build": "pnpm exec tsdown",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
-    "test:unit": "vitest run --dom packages/@custom/form-ui/__tests__"
+    "test:unit": "vitest run --dom __tests__"
   },
   "files": [
     "dist"

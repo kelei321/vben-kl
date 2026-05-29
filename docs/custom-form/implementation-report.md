@@ -13,6 +13,7 @@
 - 新增 schema -> defaultValues 与 schema -> Zod object 构建器。
 - 新增动态依赖 `dependencies`、动态必填、动态规则、动态组件 props、显示隐藏、隐藏清值。
 - 新增 `asyncOptions` 远程 options 基础能力。
+- 新增 schema 内置数组子表单，支持对象数组行级增删、复制、排序和子字段校验。
 - 新增 Ant Design Vue adapter 切换。
 - 新增 web-antd Form 示例路由菜单：`/demos/custom-tanstack-form/*`。
 - 新增详细使用文档：`docs/custom-form/tanstack-vben-form.md`。
@@ -57,6 +58,7 @@ packages/@custom/form-ui
 | 折叠展开                                        | 已实现         |
 | `submitOnEnter/submitOnChange`                  | 已实现         |
 | `asyncOptions`                                  | 已实现基础能力 |
+| 数组子表单                                      | 已实现对象数组 |
 
 ## 当前限制
 
@@ -108,6 +110,7 @@ apps/web-antd/src/views/demos/custom-form/playground/dynamic.vue
 apps/web-antd/src/views/demos/custom-form/playground/custom.vue
 apps/web-antd/src/views/demos/custom-form/playground/custom-layout.vue
 apps/web-antd/src/views/demos/custom-form/playground/api.vue
+apps/web-antd/src/views/demos/custom-form/playground/array.vue
 apps/web-antd/src/views/demos/custom-form/playground/merge.vue
 apps/web-antd/src/views/demos/custom-form/playground/scroll-to-error-test.vue
 apps/web-antd/src/views/demos/custom-form/playground/collapsible.vue
@@ -127,6 +130,7 @@ transform.out
 嵌套字段
 数组字段
 FormApi 常用方法
+数组子表单
 TanStack Store 订阅
 ```
 

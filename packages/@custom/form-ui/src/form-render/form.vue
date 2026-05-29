@@ -17,6 +17,7 @@ import {
 import { buildFieldValidator } from '../zod/rules';
 import { provideFormRenderProps } from './context';
 import { useExpandable } from './expandable';
+import FormArray from './form-array.vue';
 import FormField from './form-field.vue';
 
 interface Props extends FormRenderProps {}
@@ -55,7 +56,7 @@ const formCollapsed = computed(
 );
 
 const computedSchema = computed(
-  (): (Omit<FormSchema, 'formFieldProps'> & {
+  (): (FormSchema & {
     commonComponentProps: MaybeComponentProps;
     formFieldProps: Record<string, any>;
   })[] => {
@@ -107,7 +108,8 @@ const computedSchema = computed(
         wrapperClass,
         ...schema,
         commonComponentProps: componentProps as MaybeComponentProps,
-        componentProps: schema.componentProps,
+        componentProps:
+          'componentProps' in schema ? schema.componentProps : undefined,
         controlClass: cn(controlClass, schema.controlClass),
         formFieldProps: {
           ...formFieldProps,
@@ -139,7 +141,25 @@ function handleNativeSubmit(event: Event) {
       <template v-for="cSchema in computedSchema" :key="cSchema.fieldName">
         <component
           :is="form?.Field"
-          v-if="form?.Field"
+          v-if="form?.Field && cSchema.component === 'Array'"
+          :name="cSchema.fieldName"
+          mode="array"
+          :validators="buildFieldValidator(cSchema)"
+          v-slot="{ field }"
+        >
+          <FormArray :array-schema="cSchema" :field="field">
+            <template
+              v-for="(_, name) in $slots"
+              :key="name"
+              #[name]="slotProps"
+            >
+              <slot :name="name" v-bind="slotProps"></slot>
+            </template>
+          </FormArray>
+        </component>
+        <component
+          :is="form?.Field"
+          v-else-if="form?.Field"
           :name="cSchema.fieldName"
           :validators="buildFieldValidator(cSchema)"
           v-slot="{ field }"

@@ -2,6 +2,7 @@ import type { ZodTypeAny } from 'zod';
 
 import type { FormSchema } from '../core/types';
 
+import { isFormArraySchema } from '../core/types';
 import { setValueByPath } from './path';
 import { isZodSchema } from './rules';
 
@@ -24,6 +25,9 @@ function extractZodDefault(rule: undefined | ZodTypeAny) {
 }
 
 function inferEmptyValue(schema: FormSchema) {
+  if (isFormArraySchema(schema)) {
+    return [];
+  }
   if (
     schema.component === 'Input' ||
     schema.component === 'InputPassword' ||
@@ -35,6 +39,28 @@ function inferEmptyValue(schema: FormSchema) {
   return undefined;
 }
 
+export function createDefaultItem(schemas: FormSchema[] = []) {
+  return buildDefaultValues(schemas);
+}
+
+function normalizeArrayDefaultValue(schema: FormSchema) {
+  if (!isFormArraySchema(schema)) {
+    return undefined;
+  }
+
+  const minRows = schema.minRows ?? 0;
+  const configured = Reflect.has(schema, 'defaultValue')
+    ? schema.defaultValue
+    : [];
+  const values = Array.isArray(configured) ? [...configured] : [];
+  while (values.length < minRows) {
+    values.push({
+      ...(schema.defaultItem ?? createDefaultItem(schema.children)),
+    });
+  }
+  return values;
+}
+
 export function buildDefaultValues(schemas: FormSchema[] = []) {
   const values: Record<string, any> = {};
 
@@ -43,11 +69,22 @@ export function buildDefaultValues(schemas: FormSchema[] = []) {
       continue;
     }
 
+    if (isFormArraySchema(schema)) {
+      setValueByPath(
+        values,
+        schema.fieldName,
+        normalizeArrayDefaultValue(schema),
+      );
+      continue;
+    }
+
     if (Reflect.has(schema, 'defaultValue')) {
       setValueByPath(
         values,
         schema.fieldName,
-        schema.transform?.in?.(schema.defaultValue) ?? schema.defaultValue,
+        'transform' in schema
+          ? (schema.transform?.in?.(schema.defaultValue) ?? schema.defaultValue)
+          : schema.defaultValue,
       );
       continue;
     }
@@ -59,7 +96,9 @@ export function buildDefaultValues(schemas: FormSchema[] = []) {
       setValueByPath(
         values,
         schema.fieldName,
-        schema.transform?.in?.(zodDefault) ?? zodDefault,
+        'transform' in schema
+          ? (schema.transform?.in?.(zodDefault) ?? zodDefault)
+          : zodDefault,
       );
       continue;
     }

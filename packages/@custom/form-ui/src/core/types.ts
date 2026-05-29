@@ -15,6 +15,7 @@ export type FormLayout = 'horizontal' | 'inline' | 'vertical';
 export type ValidateTrigger = 'blur' | 'change' | 'input' | 'submit';
 
 export type BaseFormComponentType =
+  | 'Array'
   | 'DefaultButton'
   | 'PrimaryButton'
   | 'VbenCheckbox'
@@ -201,21 +202,51 @@ type FormSchemaDiscriminated<
   T extends BaseFormComponentType,
   P extends Record<string, any>,
 > = {
-  [K in Extract<keyof P, T>]: FormSchemaBody & {
+  [K in Exclude<Extract<keyof P, T>, 'Array'>]: FormSchemaBody & {
     component: K;
     componentProps?: MappedComponentProps<P[K]>;
   };
-}[Extract<keyof P, T>];
+}[Exclude<Extract<keyof P, T>, 'Array'>];
 
 type FormSchemaFallback<T extends BaseFormComponentType> = FormSchemaBody & {
-  component: Component | T;
+  component: Component | Exclude<T, 'Array'>;
   componentProps?: ComponentProps;
 };
+
+export interface FormArraySchema<
+  T extends BaseFormComponentType = BaseFormComponentType,
+  P extends Record<string, any> = Record<never, never>,
+> extends Omit<
+  FormSchemaBody,
+  'asyncOptions' | 'componentProps' | 'renderComponentContent' | 'transform'
+> {
+  addButtonText?: string;
+  children: FormSchema<T, P>[];
+  component: 'Array';
+  copyable?: boolean;
+  defaultItem?: Recordable;
+  defaultValue?: Recordable[];
+  maxRows?: number;
+  minRows?: number;
+  removeButtonText?: string;
+  sortable?: boolean;
+}
 
 export type FormSchema<
   T extends BaseFormComponentType = BaseFormComponentType,
   P extends Record<string, any> = Record<never, never>,
-> = FormSchemaDiscriminated<T, P> | FormSchemaFallback<T>;
+> =
+  | FormArraySchema<T, P>
+  | FormSchemaDiscriminated<T, P>
+  | FormSchemaFallback<T>;
+
+export function isFormArraySchema(
+  schema: FormSchema,
+): schema is FormArraySchema {
+  return (
+    schema.component === 'Array' && Array.isArray((schema as any).children)
+  );
+}
 
 export type HandleSubmitFn = (
   values: Record<string, any>,

@@ -22,6 +22,7 @@ import {
 } from '@vben-core/shared/utils';
 
 import { createFormStore } from '../store/create-form-store';
+import { createDefaultItem } from '../zod/build-default-values';
 import { buildZodSchema } from '../zod/build-schema';
 import { zodErrorToFieldErrors } from '../zod/errors';
 import { isZodSchema } from '../zod/rules';
@@ -31,6 +32,7 @@ import {
   getAsyncOptionsQueryKeyPrefix,
 } from './async-options';
 import { resolveFieldNamePath } from './field-name';
+import { isFormArraySchema } from './types';
 
 function createDeferred() {
   let resolve!: () => void;
@@ -105,6 +107,14 @@ export class FormApi {
     }
   }
 
+  async appendArrayItem(fieldName: string, value?: Recordable) {
+    const form = await this.getForm();
+    form.pushFieldValue?.(
+      fieldName,
+      value ?? this.createDefaultArrayItem(fieldName),
+    );
+  }
+
   appendSchemaByField(schema: FormSchema | FormSchema[], fieldName?: string) {
     const list = Array.isArray(schema) ? schema : [schema];
     const currentSchema = [...(this.state.schema ?? [])];
@@ -121,6 +131,11 @@ export class FormApi {
     }
     currentSchema.splice(index + 1, 0, ...list);
     this.setState({ schema: currentSchema });
+  }
+
+  async clearArrayItems(fieldName: string) {
+    const form = await this.getForm();
+    form.clearFieldValues?.(fieldName);
   }
 
   async clearField(fieldName: string) {
@@ -242,6 +257,15 @@ export class FormApi {
     ) as T;
   }
 
+  async insertArrayItem(fieldName: string, index: number, value?: Recordable) {
+    const form = await this.getForm();
+    await form.insertFieldValue?.(
+      fieldName,
+      index,
+      value ?? this.createDefaultArrayItem(fieldName),
+    );
+  }
+
   async isFieldValid(fieldName: string) {
     const form = await this.getForm();
     const meta = form.getFieldMeta?.(fieldName);
@@ -296,6 +320,11 @@ export class FormApi {
     );
   }
 
+  async moveArrayItem(fieldName: string, from: number, to: number) {
+    const form = await this.getForm();
+    form.moveFieldValues?.(fieldName, from, to);
+  }
+
   async refreshOptions(fieldName?: string) {
     const queryClient = getAsyncOptionsQueryClient();
     if (fieldName) {
@@ -314,6 +343,11 @@ export class FormApi {
 
   registerOptionsQuery(fieldName: string, queryKey: unknown[]) {
     this.optionsQueryKeyMap.set(fieldName, queryKey);
+  }
+
+  async removeArrayItem(fieldName: string, index: number) {
+    const form = await this.getForm();
+    await form.removeFieldValue?.(fieldName, index);
   }
 
   async removeSchemaByFields(fields: string[]) {
@@ -466,6 +500,11 @@ export class FormApi {
     return rawValues;
   }
 
+  async swapArrayItems(fieldName: string, aIndex: number, bIndex: number) {
+    const form = await this.getForm();
+    form.swapFieldValues?.(fieldName, aIndex, bIndex);
+  }
+
   unmount() {
     this.form?.reset?.();
     this.componentRefMap = new Map();
@@ -583,6 +622,16 @@ export class FormApi {
       }
     }
     return result;
+  }
+
+  private createDefaultArrayItem(fieldName: string) {
+    const schema = (this.state.schema ?? []).find(
+      (item) => item.fieldName === fieldName,
+    );
+    if (!schema || !isFormArraySchema(schema)) {
+      return {};
+    }
+    return cloneDeep(schema.defaultItem ?? createDefaultItem(schema.children));
   }
 
   private deleteValueByFieldName(

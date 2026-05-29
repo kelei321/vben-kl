@@ -30,6 +30,7 @@ export const DEFAULT_FORM_COMMON_CONFIG: FormCommonConfig = {
 };
 
 export const COMPONENT_MAP: Record<BaseFormComponentType, Component> = {
+  Array: h('div'),
   DefaultButton: h(VbenButton, { size: 'sm', variant: 'outline' }),
   PrimaryButton: h(VbenButton, { size: 'sm', variant: 'default' }),
   VbenCheckbox,

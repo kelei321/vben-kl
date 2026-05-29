@@ -408,3 +408,63 @@ formApi 方法 + store selector + 手动错误 + disabled 状态切换
 6. 自定义组件示例改为每次 emit 新数组/新对象，不再原地修改 `modelValue`。
 
 业务侧约束建议：`componentProps`、`renderComponentContent`、`rules`、`show`、`if` 应保持纯函数，不要在这些函数里写回表单值；有副作用的联动逻辑统一放到 `dependencies.trigger`。
+
+## 数组子表单
+
+`packages/@custom/form-ui` 支持通过 schema 内置项声明对象数组子表单，首版用于联系人、商品明细、审批节点这类对象数组场景：
+
+```ts
+const [Form, formApi] = useVbenForm({
+  schema: [
+    {
+      component: 'Array',
+      fieldName: 'contacts',
+      label: '联系人',
+      minRows: 1,
+      maxRows: 5,
+      copyable: true,
+      sortable: true,
+      addButtonText: '新增联系人',
+      children: [
+        {
+          component: 'Input',
+          fieldName: 'name',
+          label: '姓名',
+          rules: z.string().min(1, '请输入联系人姓名'),
+        },
+        {
+          component: 'Input',
+          fieldName: 'phone',
+          label: '手机号',
+          rules: z.string().min(1, '请输入手机号'),
+        },
+      ],
+    },
+  ],
+});
+```
+
+数组项 `children` 复用普通字段 schema，子字段 `fieldName` 写相对路径，渲染时会自动转换成 `contacts[0].name`。提交值保持对象数组结构：
+
+```ts
+{
+  contacts: [{ name: '张三', phone: '13800000000' }];
+}
+```
+
+配套 FormApi：
+
+```ts
+formApi.appendArrayItem('contacts', { name: '张三' });
+formApi.insertArrayItem('contacts', 0, { name: '李四' });
+formApi.removeArrayItem('contacts', 0);
+formApi.moveArrayItem('contacts', 0, 1);
+formApi.swapArrayItems('contacts', 0, 1);
+formApi.clearArrayItems('contacts');
+```
+
+当前限制：
+
+- 首版只支持对象数组，不支持数组内再嵌套数组。
+- 数组 schema 本身支持 `minRows/maxRows`，子字段校验仍使用现有 `rules`、`dependencies`、`asyncOptions` 能力。
+- web-antd 示例入口为 `/demos/custom-tanstack-form/array`。

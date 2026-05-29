@@ -9,6 +9,9 @@ export function applySchemaValueTransforms(
   const values = { ...originValues };
 
   for (const schema of schemas) {
+    if (!('transform' in schema)) {
+      continue;
+    }
     if (!schema.transform?.out) {
       continue;
     }

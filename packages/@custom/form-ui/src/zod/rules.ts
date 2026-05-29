@@ -5,6 +5,7 @@ import type { FormSchema, FormSchemaRuleType, Recordable } from '../core/types';
 import { z } from 'zod';
 
 import { getCustomRule } from '../config';
+import { isFormArraySchema } from '../core/types';
 
 export function isZodSchema(rule: unknown): rule is ZodTypeAny {
   return !!rule && typeof (rule as ZodTypeAny).safeParse === 'function';
@@ -84,6 +85,23 @@ export function normalizeRule(
 ): ZodTypeAny {
   if (isZodSchema(rule)) {
     return rule;
+  }
+
+  if (isFormArraySchema(schema)) {
+    let arrayRule = z.array(z.any());
+    if (schema.minRows !== undefined) {
+      arrayRule = arrayRule.min(
+        schema.minRows,
+        `至少保留 ${schema.minRows} 行`,
+      );
+    }
+    if (schema.maxRows !== undefined) {
+      arrayRule = arrayRule.max(
+        schema.maxRows,
+        `最多允许 ${schema.maxRows} 行`,
+      );
+    }
+    return arrayRule;
   }
 
   if (typeof rule === 'string' && rule.length > 0) {
