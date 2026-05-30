@@ -5,6 +5,7 @@ import { Button, Card, message } from 'ant-design-vue';
 
 import { useVbenForm, z } from '#/adapter/custom-form';
 
+import ArrayLinkage from './array-linkage.vue';
 import JsonPreview from './modules/json-preview.vue';
 
 const output = ref<Record<string, any>>({});
@@ -143,23 +144,27 @@ async function handleApiAction(
 </script>
 
 <template>
-  <Card title="Playground 数组子表单">
-    <div class="mb-4 flex flex-wrap gap-2">
-      <Button type="primary" @click="handleApiAction('appendArrayItem')">
-        appendArrayItem
-      </Button>
-      <Button @click="handleApiAction('insertArrayItem')">
-        insertArrayItem
-      </Button>
-      <Button @click="handleApiAction('moveArrayItem')">moveArrayItem</Button>
-      <Button @click="handleApiAction('removeArrayItem')">
-        removeArrayItem
-      </Button>
-      <Button @click="handleApiAction('getValues')">getValues</Button>
-      <Button @click="handleApiAction('validate')">validate</Button>
-    </div>
+  <div class="space-y-4">
+    <Card title="Playground 数组子表单">
+      <div class="mb-4 flex flex-wrap gap-2">
+        <Button type="primary" @click="handleApiAction('appendArrayItem')">
+          appendArrayItem
+        </Button>
+        <Button @click="handleApiAction('insertArrayItem')">
+          insertArrayItem
+        </Button>
+        <Button @click="handleApiAction('moveArrayItem')">moveArrayItem</Button>
+        <Button @click="handleApiAction('removeArrayItem')">
+          removeArrayItem
+        </Button>
+        <Button @click="handleApiAction('getValues')">getValues</Button>
+        <Button @click="handleApiAction('validate')">validate</Button>
+      </div>
 
-    <ArrayForm />
-    <JsonPreview class="mt-4" title="数组子表单输出" :value="output" />
-  </Card>
+      <ArrayForm />
+      <JsonPreview class="mt-4" title="数组子表单输出" :value="output" />
+    </Card>
+
+    <ArrayLinkage />
+  </div>
 </template>

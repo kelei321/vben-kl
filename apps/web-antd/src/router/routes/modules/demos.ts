@@ -72,6 +72,14 @@ const customFormExampleRoutes: RouteRecordRaw[] = [
   },
   {
     meta: {
+      title: '数组联动',
+    },
+    name: 'CustomTanStackFormArrayLinkageDemo',
+    path: '/demos/custom-tanstack-form/array-linkage',
+    redirect: '/demos/custom-tanstack-form/array',
+  },
+  {
+    meta: {
       title: '多表单合并',
     },
     name: 'CustomTanStackFormMergeDemo',

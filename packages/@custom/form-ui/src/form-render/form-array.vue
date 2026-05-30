@@ -88,6 +88,19 @@ function createItem() {
   return cloneDeep(defaultItemTemplate.value);
 }
 
+function createScopedValues(values: Recordable | undefined, index: number) {
+  const formValues = values ?? {};
+  const arrayValue = get(formValues, props.arraySchema.fieldName);
+  const rowValue = get(formValues, `${props.arraySchema.fieldName}[${index}]`);
+
+  return {
+    ...formValues,
+    $array: Array.isArray(arrayValue) ? arrayValue : [],
+    $index: index,
+    $row: rowValue ?? {},
+  };
+}
+
 function getRowKey(row: Recordable, index: number) {
   const stableKey =
     row?.id ?? row?._id ?? row?.key ?? row?.rowKey ?? row?._rowKey;
@@ -111,20 +124,28 @@ function getRowKey(row: Recordable, index: number) {
 
 function resolveChildDependencies(child: FormSchema, index: number) {
   const dependencies = child.dependencies;
-  if (!dependencies?.triggerFields?.length) {
+  if (!dependencies) {
     return dependencies;
   }
 
   const scope = dependencies.scope ?? 'row';
-  if (scope === 'form') {
-    return dependencies;
-  }
+  const triggerFields =
+    scope === 'form'
+      ? dependencies.triggerFields
+      : dependencies.triggerFields.map((field) =>
+          resolveRowTriggerField(field, index),
+        );
 
   return {
     ...dependencies,
-    triggerFields: dependencies.triggerFields.map((field) =>
-      resolveRowTriggerField(field, index),
-    ),
+    componentProps: wrapDependencyCallback(dependencies.componentProps, index),
+    disabled: wrapDependencyCallback(dependencies.disabled, index),
+    if: wrapDependencyCallback(dependencies.if, index),
+    required: wrapDependencyCallback(dependencies.required, index),
+    rules: wrapDependencyCallback(dependencies.rules, index),
+    show: wrapDependencyCallback(dependencies.show, index),
+    trigger: wrapDependencyCallback(dependencies.trigger, index),
+    triggerFields,
   };
 }
 
@@ -179,6 +200,16 @@ function resolveRowTriggerField(field: string, index: number) {
     return field;
   }
   return `${props.arraySchema.fieldName}[${index}].${field}`;
+}
+
+function wrapDependencyCallback(callback: any, index: number) {
+  if (!isFunction(callback)) {
+    return callback;
+  }
+
+  return (values: Recordable, actions: any, controller: any) => {
+    return callback(createScopedValues(values, index), actions, controller);
+  };
 }
 
 function handleAdd() {
