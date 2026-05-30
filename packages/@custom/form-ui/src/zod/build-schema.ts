@@ -1,10 +1,6 @@
 import type { ZodRawShape, ZodTypeAny } from 'zod';
 
-import type {
-  FormSchema,
-  FormSchemaRuleType,
-  Recordable,
-} from '../core/types';
+import type { FormSchema, FormSchemaRuleType, Recordable } from '../core/types';
 
 import { z } from 'zod';
 
