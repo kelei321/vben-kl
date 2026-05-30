@@ -31,7 +31,6 @@ const defaultCopyExcludeFields = [
   'createdAt',
   'updatedAt',
 ];
-const nestedArrayWarnedKeys = new Set<string>();
 const rowKeyMap = new WeakMap<object, string>();
 let rowKeySeed = 0;
 
@@ -69,7 +68,7 @@ const defaultItemTemplate = computed(
 const rowSchemas = computed(() => {
   return rows.value.map((row, rowIndex) => ({
     children: (props.arraySchema.children ?? [])
-      .filter((child: FormSchema) => !isNestedArrayChild(child))
+      .filter((child: FormSchema) => child.component !== 'Array')
       .map((child: FormSchema) => {
         const schema = resolveChildSchema(child, rowIndex);
         return {
@@ -110,26 +109,13 @@ function getRowKey(row: Recordable, index: number) {
   return `array-row-${index}`;
 }
 
-function isNestedArrayChild(child: FormSchema) {
-  if (child.component !== 'Array') {
-    return false;
-  }
-
-  const warnKey = `${props.arraySchema.fieldName}.${child.fieldName}`;
-  if (!nestedArrayWarnedKeys.has(warnKey)) {
-    nestedArrayWarnedKeys.add(warnKey);
-    console.warn(`[VbenForm] nested array schema is not supported: ${warnKey}`);
-  }
-  return true;
-}
-
 function resolveChildDependencies(child: FormSchema, index: number) {
   const dependencies = child.dependencies;
   if (!dependencies?.triggerFields?.length) {
     return dependencies;
   }
 
-  const scope = (dependencies as any).scope ?? 'row';
+  const scope = dependencies.scope ?? 'row';
   if (scope === 'form') {
     return dependencies;
   }
