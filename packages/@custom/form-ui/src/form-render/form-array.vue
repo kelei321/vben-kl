@@ -90,7 +90,8 @@ function createItem() {
 }
 
 function getRowKey(row: Recordable, index: number) {
-  const stableKey = row?.id ?? row?._id ?? row?.key ?? row?.rowKey ?? row?._rowKey;
+  const stableKey =
+    row?.id ?? row?._id ?? row?.key ?? row?.rowKey ?? row?._rowKey;
   if (stableKey !== undefined && stableKey !== null && stableKey !== '') {
     return String(stableKey);
   }
@@ -237,7 +238,10 @@ function handleRemove(index: number) {
       v-for="rowState in rowSchemas"
       :key="rowState.rowKey"
       :class="
-        cn('border-border bg-card space-y-3 rounded-md border p-3', rowState.rowClass)
+        cn(
+          'border-border bg-card space-y-3 rounded-md border p-3',
+          rowState.rowClass,
+        )
       "
     >
       <slot
@@ -316,7 +320,10 @@ function handleRemove(index: number) {
           )
         "
       >
-        <template v-for="childState in rowState.children" :key="childState.fieldName">
+        <template
+          v-for="childState in rowState.children"
+          :key="childState.fieldName"
+        >
           <component
             :is="formRenderProps.form?.Field"
             v-if="formRenderProps.form?.Field"
