@@ -71,8 +71,10 @@ function createArrayScopedValues(
   row: unknown,
   index: number,
 ) {
+  const baseValues = values ? { ...values } : {};
+
   return {
-    ...(values ?? {}),
+    ...baseValues,
     $array: rows,
     $index: index,
     $row: row ?? {},
