@@ -369,3 +369,13 @@ export interface VbenFormAdapterOptions<
     Record<'required' | 'selectRequired' | string, DefineRuleFn>
   >;
 }
+
+export interface FieldDependencyState {
+  componentProps: MaybeComponentProps;
+  disabled: boolean;
+  if: boolean;
+  loading: boolean;
+  required: boolean;
+  rules?: FormSchemaRuleType;
+  show: boolean;
+}
