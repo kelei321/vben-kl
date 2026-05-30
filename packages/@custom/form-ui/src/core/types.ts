@@ -106,6 +106,11 @@ export interface FormItemDependencies {
   if?: boolean | FormItemDependenciesCondition;
   required?: FormItemDependenciesCondition;
   rules?: FormItemDependenciesConditionWithRules;
+  /**
+   * Dependency field scope. Array children use `row` by default so
+   * `triggerFields: ['type']` resolves to the same row.
+   */
+  scope?: 'form' | 'row';
   show?: boolean | FormItemDependenciesCondition;
   trigger?: FormItemDependenciesCondition<void>;
   triggerFields: string[];
@@ -222,13 +227,17 @@ export interface FormArraySchema<
 > {
   addButtonText?: string;
   children: FormSchema<T, P>[];
+  childrenWrapperClass?: string;
   component: 'Array';
   copyable?: boolean;
+  copyExcludeFields?: string[];
+  copyValue?: (row: Recordable, index: number) => Recordable;
   defaultItem?: Recordable;
   defaultValue?: Recordable[];
   maxRows?: number;
   minRows?: number;
   removeButtonText?: string;
+  rowClass?: ((row: Recordable, index: number) => string) | string;
   sortable?: boolean;
 }
 

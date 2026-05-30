@@ -66,6 +66,10 @@ const asyncOptionsMap: Record<string, { label: string; value: string }[]> = {
   ],
 };
 
+const stressAlertDescription =
+  '覆盖大量字段、嵌套 fieldName、动态 rules、动态 componentProps、远程 options 竞态、trigger 写其他字段、trigger 写回自身等场景。重点观察页面是否卡死、字段是否重复抖动、valuesChange 是否异常暴涨。';
+const stressAlertMessage = '该示例用于压测自定义 TanStack Form 封装的边界行为';
+
 const fieldCount = ref(80);
 const output = ref<Record<string, any>>({});
 const metrics = ref<MetricsState>({
@@ -483,10 +487,10 @@ async function validateLargeForm() {
     <Card title="复杂表单联动 / 性能边界 / watch 嵌套循环探针">
       <div class="space-y-4">
         <Alert
+          :description="stressAlertDescription"
+          :message="stressAlertMessage"
           show-icon
           type="warning"
-          message="该示例用于压测自定义 TanStack Form 封装的边界行为"
-          description="覆盖大量字段、嵌套 fieldName、动态 rules、动态 componentProps、远程 options 竞态、trigger 写其他字段、trigger 写回自身等场景。重点观察页面是否卡死、字段是否重复抖动、valuesChange 是否异常暴涨。"
         />
 
         <Space wrap>

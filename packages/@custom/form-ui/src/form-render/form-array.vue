@@ -22,6 +22,18 @@ const props = defineProps<Props>();
 useFormContext();
 const formRenderProps = injectRenderFormProps();
 
+const defaultCopyExcludeFields = [
+  'id',
+  '_id',
+  'key',
+  'rowKey',
+  '_rowKey',
+  'createdAt',
+  'updatedAt',
+];
+const rowKeyMap = new WeakMap<object, string>();
+let rowKeySeed = 0;
+
 const rows = computed<Recordable[]>(() => {
   const value =
     get(formRenderProps.formValues ?? {}, props.arraySchema.fieldName) ??
@@ -47,20 +59,76 @@ const canRemove = computed(() => {
   );
 });
 
-function createItem() {
-  return cloneDeep(
+const defaultItemTemplate = computed(
+  () =>
     props.arraySchema.defaultItem ??
-      createDefaultItem(props.arraySchema.children),
-  );
+    createDefaultItem(props.arraySchema.children ?? []),
+);
+
+const rowSchemas = computed(() => {
+  return rows.value.map((row, rowIndex) => ({
+    children: (props.arraySchema.children ?? [])
+      .filter((child: FormSchema) => child.component !== 'Array')
+      .map((child: FormSchema) => {
+        const schema = resolveChildSchema(child, rowIndex);
+        return {
+          fieldName: schema.fieldName,
+          schema,
+          validators: buildFieldValidator(schema),
+        };
+      }),
+    row,
+    rowClass: resolveRowClass(row, rowIndex),
+    rowIndex,
+    rowKey: getRowKey(row, rowIndex),
+  }));
+});
+
+function createItem() {
+  return cloneDeep(defaultItemTemplate.value);
+}
+
+function getRowKey(row: Recordable, index: number) {
+  const stableKey =
+    row?.id ?? row?._id ?? row?.key ?? row?.rowKey ?? row?._rowKey;
+  if (stableKey !== undefined && stableKey !== null && stableKey !== '') {
+    return String(stableKey);
+  }
+
+  if (row && typeof row === 'object') {
+    const cachedKey = rowKeyMap.get(row);
+    if (cachedKey) {
+      return cachedKey;
+    }
+    rowKeySeed += 1;
+    const rowKey = `array-row-${rowKeySeed}`;
+    rowKeyMap.set(row, rowKey);
+    return rowKey;
+  }
+
+  return `array-row-${index}`;
+}
+
+function resolveChildDependencies(child: FormSchema, index: number) {
+  const dependencies = child.dependencies;
+  if (!dependencies?.triggerFields?.length) {
+    return dependencies;
+  }
+
+  const scope = dependencies.scope ?? 'row';
+  if (scope === 'form') {
+    return dependencies;
+  }
+
+  return {
+    ...dependencies,
+    triggerFields: dependencies.triggerFields.map((field) =>
+      resolveRowTriggerField(field, index),
+    ),
+  };
 }
 
 function resolveChildSchema(child: FormSchema, index: number) {
-  if (child.component === 'Array') {
-    console.warn(
-      `[VbenForm] nested array schema is not supported: ${props.arraySchema.fieldName}.${child.fieldName}`,
-    );
-  }
-
   const formItemClass = isFunction(child.formItemClass)
     ? child.formItemClass
     : cn('min-w-0', child.formItemClass);
@@ -68,6 +136,7 @@ function resolveChildSchema(child: FormSchema, index: number) {
   return {
     ...props.arraySchema,
     ...child,
+    dependencies: resolveChildDependencies(child, index),
     disabled: child.disabled ?? props.arraySchema.disabled,
     fieldName: `${props.arraySchema.fieldName}[${index}].${child.fieldName}`,
     formItemClass,
@@ -75,6 +144,41 @@ function resolveChildSchema(child: FormSchema, index: number) {
     labelWidth: child.labelWidth ?? props.arraySchema.labelWidth,
     wrapperClass: child.wrapperClass ?? props.arraySchema.wrapperClass,
   };
+}
+
+function resolveCopyValue(row: Recordable, index: number) {
+  const copyValue = props.arraySchema.copyValue;
+  const copied = isFunction(copyValue)
+    ? cloneDeep(copyValue(row, index))
+    : cloneDeep(row ?? {});
+  const excludeFields = [
+    ...defaultCopyExcludeFields,
+    ...(props.arraySchema.copyExcludeFields ?? []),
+  ];
+
+  for (const field of excludeFields) {
+    Reflect.deleteProperty(copied, field);
+  }
+
+  return copied;
+}
+
+function resolveRowClass(row: Recordable, index: number) {
+  const rowClass = props.arraySchema.rowClass;
+  return isFunction(rowClass) ? rowClass(row, index) : rowClass;
+}
+
+function resolveRowTriggerField(field: string, index: number) {
+  if (field.startsWith('$root.')) {
+    return field.slice('$root.'.length);
+  }
+  if (field.startsWith('$form.')) {
+    return field.slice('$form.'.length);
+  }
+  if (field.startsWith(`${props.arraySchema.fieldName}[`)) {
+    return field;
+  }
+  return `${props.arraySchema.fieldName}[${index}].${field}`;
 }
 
 function handleAdd() {
@@ -85,7 +189,10 @@ function handleAdd() {
 
 function handleCopy(index: number) {
   if (canAdd.value) {
-    props.field?.insertValue?.(index + 1, cloneDeep(rows.value[index] ?? {}));
+    props.field?.insertValue?.(
+      index + 1,
+      resolveCopyValue(rows.value[index] ?? {}, index),
+    );
   }
 }
 
@@ -114,48 +221,53 @@ function handleRemove(index: number) {
     </div>
 
     <div
-      v-for="(row, rowIndex) in rows"
-      :key="rowIndex"
-      class="border-border bg-card space-y-3 rounded-md border p-3"
+      v-for="rowState in rowSchemas"
+      :key="rowState.rowKey"
+      :class="
+        cn(
+          'border-border bg-card space-y-3 rounded-md border p-3',
+          rowState.rowClass,
+        )
+      "
     >
       <slot
-        :index="rowIndex"
+        :index="rowState.rowIndex"
         :name="`${arraySchema.fieldName}-row-before`"
-        :row="row"
+        :row="rowState.row"
       ></slot>
 
       <div class="flex items-center justify-between gap-2">
         <div class="text-muted-foreground text-xs">
-          {{ rowIndex + 1 }}
+          {{ rowState.rowIndex + 1 }}
         </div>
         <div class="flex shrink-0 items-center gap-1">
           <slot
             :field="field"
-            :index="rowIndex"
+            :index="rowState.rowIndex"
             :name="`${arraySchema.fieldName}-actions`"
-            :row="row"
+            :row="rowState.row"
           >
             <Button
               v-if="arraySchema.sortable"
               aria-label="上移"
-              :disabled="isDisabled || rowIndex === 0"
+              :disabled="isDisabled || rowState.rowIndex === 0"
               size="icon"
               title="上移"
               type="button"
               variant="ghost"
-              @click="handleMove(rowIndex, rowIndex - 1)"
+              @click="handleMove(rowState.rowIndex, rowState.rowIndex - 1)"
             >
               <ArrowUp class="size-4" />
             </Button>
             <Button
               v-if="arraySchema.sortable"
               aria-label="下移"
-              :disabled="isDisabled || rowIndex === rows.length - 1"
+              :disabled="isDisabled || rowState.rowIndex === rows.length - 1"
               size="icon"
               title="下移"
               type="button"
               variant="ghost"
-              @click="handleMove(rowIndex, rowIndex + 1)"
+              @click="handleMove(rowState.rowIndex, rowState.rowIndex + 1)"
             >
               <ArrowDown class="size-4" />
             </Button>
@@ -167,7 +279,7 @@ function handleRemove(index: number) {
               title="复制"
               type="button"
               variant="ghost"
-              @click="handleCopy(rowIndex)"
+              @click="handleCopy(rowState.rowIndex)"
             >
               <Copy class="size-4" />
             </Button>
@@ -178,7 +290,7 @@ function handleRemove(index: number) {
               :title="arraySchema.removeButtonText ?? '删除'"
               type="button"
               variant="ghost"
-              @click="handleRemove(rowIndex)"
+              @click="handleRemove(rowState.rowIndex)"
             >
               <X class="size-4" />
             </Button>
@@ -186,22 +298,27 @@ function handleRemove(index: number) {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+      <div
+        :class="
+          cn(
+            'grid grid-cols-1 gap-x-4 md:grid-cols-2',
+            arraySchema.childrenWrapperClass,
+          )
+        "
+      >
         <template
-          v-for="child in arraySchema.children"
-          :key="`${rowIndex}-${child.fieldName}`"
+          v-for="childState in rowState.children"
+          :key="childState.fieldName"
         >
           <component
             :is="formRenderProps.form?.Field"
-            v-if="formRenderProps.form?.Field && child.component !== 'Array'"
-            :name="`${arraySchema.fieldName}[${rowIndex}].${child.fieldName}`"
-            :validators="
-              buildFieldValidator(resolveChildSchema(child, rowIndex))
-            "
+            v-if="formRenderProps.form?.Field"
+            :name="childState.fieldName"
+            :validators="childState.validators"
             v-slot="{ field: childField }"
           >
             <FormField
-              v-bind="resolveChildSchema(child, rowIndex)"
+              v-bind="childState.schema"
               :common-component-props="arraySchema.commonComponentProps ?? {}"
               :field="childField"
             />
@@ -210,9 +327,9 @@ function handleRemove(index: number) {
       </div>
 
       <slot
-        :index="rowIndex"
+        :index="rowState.rowIndex"
         :name="`${arraySchema.fieldName}-row-after`"
-        :row="row"
+        :row="rowState.row"
       ></slot>
     </div>
 
