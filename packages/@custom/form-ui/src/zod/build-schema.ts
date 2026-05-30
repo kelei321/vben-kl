@@ -1,6 +1,12 @@
 import type { ZodRawShape, ZodTypeAny } from 'zod';
 
-import type { FormSchema, FormSchemaRuleType, Recordable } from '../core/types';
+import type {
+  ExtendedFormApi,
+  FormActions,
+  FormSchema,
+  FormSchemaRuleType,
+  Recordable,
+} from '../core/types';
 
 import { z } from 'zod';
 
@@ -10,6 +16,9 @@ import { resolveFieldNamePath } from '../core/field-name';
 import { isFormArraySchema } from '../core/types';
 import { setZodShapeByPath } from './path';
 import { isZodSchema, normalizeRule } from './rules';
+
+const emptyController = {} as ExtendedFormApi;
+const emptyFormActions = {} as FormActions;
 
 export interface BuildZodSchemaOptions {
   dynamicRules?: Record<string, FormSchemaRuleType | undefined>;
@@ -92,7 +101,7 @@ async function isArrayChildVisible(
 
   const whenIf = dependencies.if;
   if (isFunction(whenIf)) {
-    if (!(await whenIf(scopedValues, {}, {} as any))) {
+    if (!(await whenIf(scopedValues, emptyFormActions, emptyController))) {
       return false;
     }
   } else if (isBoolean(whenIf) && !whenIf) {
@@ -101,7 +110,7 @@ async function isArrayChildVisible(
 
   const show = dependencies.show;
   if (isFunction(show)) {
-    return !!(await show(scopedValues, {}, {} as any));
+    return !!(await show(scopedValues, emptyFormActions, emptyController));
   }
   if (isBoolean(show)) {
     return show;
@@ -120,11 +129,19 @@ async function resolveArrayChildRule(
 
   if (dependencies) {
     if (isFunction(dependencies.required)) {
-      required = !!(await dependencies.required(scopedValues, {}, {} as any));
+      required = !!(await dependencies.required(
+        scopedValues,
+        emptyFormActions,
+        emptyController,
+      ));
     }
 
     if (isFunction(dependencies.rules)) {
-      rule = await dependencies.rules(scopedValues, {}, {} as any);
+      rule = await dependencies.rules(
+        scopedValues,
+        emptyFormActions,
+        emptyController,
+      );
     } else if (
       dependencies.required &&
       required === false &&
