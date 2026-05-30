@@ -154,7 +154,7 @@ function resolveChildSchema(child: FormSchema, index: number) {
     ? child.formItemClass
     : cn('min-w-0', child.formItemClass);
 
-  return {
+  const schema = {
     ...props.arraySchema,
     ...child,
     dependencies: resolveChildDependencies(child, index),
@@ -165,6 +165,9 @@ function resolveChildSchema(child: FormSchema, index: number) {
     labelWidth: child.labelWidth ?? props.arraySchema.labelWidth,
     wrapperClass: child.wrapperClass ?? props.arraySchema.wrapperClass,
   };
+
+  Reflect.deleteProperty(schema, 'children');
+  return schema;
 }
 
 function resolveCopyValue(row: Recordable, index: number) {
