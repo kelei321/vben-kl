@@ -1,6 +1,10 @@
 import type { ZodRawShape, ZodTypeAny } from 'zod';
 
-import type { FormSchema, FormSchemaRuleType, Recordable } from '../core/types';
+import type {
+  FormSchema,
+  FormSchemaRuleType,
+  Recordable,
+} from '../core/types';
 
 import { z } from 'zod';
 
@@ -163,9 +167,6 @@ async function validateArrayRows(
 
     for (const child of schema.children) {
       if (child.component === 'Array') {
-        console.warn(
-          `[VbenForm] nested array schema is not supported: ${schema.fieldName}.${child.fieldName}`,
-        );
         continue;
       }
       if (!(await isArrayChildVisible(child, scopedValues))) {
@@ -180,10 +181,15 @@ async function validateArrayRows(
       }
 
       const childPath = getPathSegments(child.fieldName);
-      for (const issue of result.error.issues) {
+      for (const childIssue of result.error.issues) {
         ctx.addIssue({
-          ...issue,
-          path: [schema.fieldName, rowIndex, ...childPath, ...(issue.path ?? [])],
+          ...childIssue,
+          path: [
+            schema.fieldName,
+            rowIndex,
+            ...childPath,
+            ...(childIssue.path ?? []),
+          ],
         });
       }
     }
