@@ -8,9 +8,9 @@ import type {
   Recordable,
 } from '../core/types';
 
-import { z } from 'zod';
-
 import { get, isBoolean, isFunction } from '@vben-core/shared/utils';
+
+import { z } from 'zod';
 
 import { resolveFieldNamePath } from '../core/field-name';
 import { isFormArraySchema } from '../core/types';
