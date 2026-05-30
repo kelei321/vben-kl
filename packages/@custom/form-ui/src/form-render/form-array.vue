@@ -91,16 +91,16 @@ function createItem() {
 function createScopedValues(values: Recordable | undefined, index: number) {
   const formValues = values ?? {};
   const arrayValue = get(formValues, props.arraySchema.fieldName);
+  const rowValue = get(
+    formValues,
+    `${props.arraySchema.fieldName}[${index}]`,
+  );
 
   return {
     ...formValues,
     $array: Array.isArray(arrayValue) ? arrayValue : [],
     $index: index,
-    $row: get(
-      formValues,
-      `${props.arraySchema.fieldName}[${index}]`,
-      {},
-    ),
+    $row: rowValue ?? {},
   };
 }
 
