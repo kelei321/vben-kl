@@ -17,8 +17,10 @@ import { isFormArraySchema } from '../core/types';
 import { setZodShapeByPath } from './path';
 import { isZodSchema, normalizeRule } from './rules';
 
-const emptyFormActions: FormActions = {};
-const emptyFormController = {} as ExtendedFormApi;
+interface DependencyArgs {
+  controller: ExtendedFormApi;
+  formApi: FormActions;
+}
 
 export interface BuildZodSchemaOptions {
   controller?: ExtendedFormApi;
@@ -78,10 +80,16 @@ function createArrayScopedValues(
   };
 }
 
-function getDependencyArgs(options: BuildZodSchemaOptions) {
+function getDependencyArgs(
+  options: BuildZodSchemaOptions,
+): DependencyArgs | undefined {
+  if (!options.controller || !options.formApi) {
+    return undefined;
+  }
+
   return {
-    controller: options.controller ?? emptyFormController,
-    formApi: options.formApi ?? emptyFormActions,
+    controller: options.controller,
+    formApi: options.formApi,
   };
 }
 
@@ -111,9 +119,10 @@ async function isArrayChildVisible(
     return !child.hide;
   }
 
-  const { controller, formApi } = getDependencyArgs(options);
+  const dependencyArgs = getDependencyArgs(options);
   const whenIf = dependencies.if;
-  if (isFunction(whenIf)) {
+  if (isFunction(whenIf) && dependencyArgs) {
+    const { controller, formApi } = dependencyArgs;
     if (!(await whenIf(scopedValues, formApi, controller))) {
       return false;
     }
@@ -122,7 +131,8 @@ async function isArrayChildVisible(
   }
 
   const show = dependencies.show;
-  if (isFunction(show)) {
+  if (isFunction(show) && dependencyArgs) {
+    const { controller, formApi } = dependencyArgs;
     return !!(await show(scopedValues, formApi, controller));
   }
   if (isBoolean(show)) {
@@ -142,18 +152,23 @@ async function resolveArrayChildRule(
   let rule = child.rules;
 
   if (dependencies) {
-    const { controller, formApi } = getDependencyArgs(options);
-    if (isFunction(dependencies.required)) {
-      required = !!(await dependencies.required(
-        scopedValues,
-        formApi,
-        controller,
-      ));
+    const dependencyArgs = getDependencyArgs(options);
+    if (dependencyArgs) {
+      const { controller, formApi } = dependencyArgs;
+      if (isFunction(dependencies.required)) {
+        required = !!(await dependencies.required(
+          scopedValues,
+          formApi,
+          controller,
+        ));
+      }
+
+      if (isFunction(dependencies.rules)) {
+        rule = await dependencies.rules(scopedValues, formApi, controller);
+      }
     }
 
-    if (isFunction(dependencies.rules)) {
-      rule = await dependencies.rules(scopedValues, formApi, controller);
-    } else if (
+    if (
       dependencies.required &&
       required === false &&
       (rule === 'required' || rule === 'selectRequired')
