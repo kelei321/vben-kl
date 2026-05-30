@@ -229,9 +229,9 @@ export interface FormArraySchema<
   children: FormSchema<T, P>[];
   childrenWrapperClass?: string;
   component: 'Array';
+  copyable?: boolean;
   copyExcludeFields?: string[];
   copyValue?: (row: Recordable, index: number) => Recordable;
-  copyable?: boolean;
   defaultItem?: Recordable;
   defaultValue?: Recordable[];
   maxRows?: number;
