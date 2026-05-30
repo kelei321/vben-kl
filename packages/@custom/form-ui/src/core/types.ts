@@ -85,19 +85,19 @@ export type DefineRuleFn = (
 type FormItemDependenciesCondition<T = boolean | PromiseLike<boolean>> = (
   value: Partial<Record<string, any>>,
   actions: FormActions,
-  controller: ExtendedFormApi,
+  controller: FormApi,
 ) => T;
 
 type FormItemDependenciesConditionWithRules = (
   value: Partial<Record<string, any>>,
   actions: FormActions,
-  controller: ExtendedFormApi,
+  controller: FormApi,
 ) => FormSchemaRuleType | PromiseLike<FormSchemaRuleType>;
 
 type FormItemDependenciesConditionWithProps = (
   value: Partial<Record<string, any>>,
   actions: FormActions,
-  controller: ExtendedFormApi,
+  controller: FormApi,
 ) => MaybeComponentProps | PromiseLike<MaybeComponentProps>;
 
 export interface FormItemDependencies {

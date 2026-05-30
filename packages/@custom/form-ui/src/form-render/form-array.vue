@@ -21,6 +21,13 @@ interface CachedDependencies {
   source: FormItemDependencies;
 }
 
+interface CachedChildState {
+  fieldName: string;
+  schema: FormSchema;
+  source: FormSchema;
+  validators: Recordable;
+}
+
 interface Props {
   arraySchema: any;
   field: any;
@@ -60,8 +67,7 @@ const defaultCopyExcludeFields = [
   'updatedAt',
 ];
 const dependencyCache = new Map<string, CachedDependencies>();
-const rowKeyMap = new WeakMap<object, string>();
-let rowKeySeed = 0;
+const childStateCache = new Map<string, CachedChildState>();
 
 const rows = computed<Recordable[]>(() => {
   const value =
@@ -98,14 +104,7 @@ const rowSchemas = computed(() => {
   return rows.value.map((row, rowIndex) => ({
     children: (props.arraySchema.children ?? [])
       .filter((child: FormSchema) => child.component !== 'Array')
-      .map((child: FormSchema) => {
-        const schema = resolveChildSchema(child, rowIndex);
-        return {
-          fieldName: schema.fieldName,
-          schema,
-          validators: buildFieldValidator(schema),
-        };
-      }),
+      .map((child: FormSchema) => resolveChildState(child, rowIndex)),
     row,
     rowClass: resolveRowClass(row, rowIndex),
     rowIndex,
@@ -137,18 +136,7 @@ function getRowKey(row: Recordable, index: number) {
     return String(stableKey);
   }
 
-  if (row && typeof row === 'object') {
-    const cachedKey = rowKeyMap.get(row);
-    if (cachedKey) {
-      return cachedKey;
-    }
-    rowKeySeed += 1;
-    const rowKey = `array-row-${rowKeySeed}`;
-    rowKeyMap.set(row, rowKey);
-    return rowKey;
-  }
-
-  return `array-row-${index}`;
+  return `${props.arraySchema.fieldName}-row-${index}`;
 }
 
 function resolveArraySharedSchema() {
@@ -199,6 +187,26 @@ function resolveChildDependencies(child: FormSchema, index: number) {
   });
 
   return resolvedDependencies;
+}
+
+function resolveChildState(child: FormSchema, index: number) {
+  const fieldName = `${props.arraySchema.fieldName}[${index}].${child.fieldName}`;
+  const cacheKey = `${fieldName}:${child.component}`;
+  const cached = childStateCache.get(cacheKey);
+
+  if (cached?.source === child) {
+    return cached;
+  }
+
+  const schema = resolveChildSchema(child, index);
+  const childState = {
+    fieldName: schema.fieldName,
+    schema,
+    source: child,
+    validators: buildFieldValidator(schema),
+  };
+  childStateCache.set(cacheKey, childState);
+  return childState;
 }
 
 function resolveChildSchema(child: FormSchema, index: number) {

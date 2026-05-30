@@ -1,5 +1,6 @@
 import type { ZodRawShape, ZodTypeAny } from 'zod';
 
+import type { FormApi } from '../core/form-api';
 import type {
   ExtendedFormApi,
   FormActions,
@@ -18,12 +19,12 @@ import { setZodShapeByPath } from './path';
 import { isZodSchema, normalizeRule } from './rules';
 
 interface DependencyArgs {
-  controller: ExtendedFormApi;
+  controller: ExtendedFormApi | FormApi;
   formApi: FormActions;
 }
 
 export interface BuildZodSchemaOptions {
-  controller?: ExtendedFormApi;
+  controller?: ExtendedFormApi | FormApi;
   dynamicRules?: Record<string, FormSchemaRuleType | undefined>;
   formApi?: FormActions;
   visibleFields?: Record<string, boolean>;

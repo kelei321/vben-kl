@@ -540,15 +540,25 @@ export class FormApi {
       }
     });
 
+    let hasChanged = false;
     currentSchema.forEach((schema, index) => {
       const updatedData = updatedMap[schema.fieldName];
       if (updatedData) {
-        currentSchema[index] = mergePatch(
+        const nextSchema = mergePatch(
           schema as Recordable,
           updatedData as Recordable,
         ) as FormSchema;
+        if (!isEqual(schema, nextSchema)) {
+          currentSchema[index] = nextSchema;
+          hasChanged = true;
+        }
       }
     });
+
+    if (!hasChanged) {
+      return;
+    }
+
     this.setState({ schema: currentSchema });
   }
 
@@ -563,7 +573,10 @@ export class FormApi {
       }
     }
 
-    const schema = buildZodSchema(this.state.schema ?? []);
+    const schema = buildZodSchema(this.state.schema ?? [], {
+      controller: this,
+      formApi: form,
+    });
     const result = await schema.safeParseAsync(form.state?.values ?? {});
 
     if (result.success) {
@@ -600,12 +613,27 @@ export class FormApi {
     if (!schema) {
       return { errors: {}, valid: true };
     }
-    const fullSchema = buildZodSchema([schema]);
+    const fullSchema = buildZodSchema([schema], {
+      controller: this,
+      formApi: form,
+    });
     const result = await fullSchema.safeParseAsync(form.state?.values ?? {});
     if (result.success) {
+      form.setFieldMeta?.(fieldName, (prev: any) => ({
+        ...prev,
+        errorMap: {},
+        errors: [],
+        isValid: true,
+      }));
       return { errors: {}, valid: true };
     }
     const errors = zodErrorToFieldErrors(result.error);
+    form.setFieldMeta?.(fieldName, (prev: any) => ({
+      ...prev,
+      errorMap: errors[fieldName] ? { onSubmit: errors[fieldName] } : {},
+      errors: errors[fieldName] ?? [],
+      isValid: false,
+    }));
     if (this.state?.scrollToFirstError) {
       this.scrollToFirstError(fieldName);
     }

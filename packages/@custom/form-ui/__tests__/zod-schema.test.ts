@@ -1,8 +1,12 @@
+import type { ZodError } from 'zod';
+
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { FormApi } from '../src/core/form-api';
 import { buildDefaultValues } from '../src/zod/build-default-values';
 import { buildZodSchema } from '../src/zod/build-schema';
+import { zodErrorToFieldErrors } from '../src/zod/errors';
 import { getValueByPath, setValueByPath } from '../src/zod/path';
 
 const schema = [
@@ -115,6 +119,157 @@ describe('custom form zod schema builder', () => {
     expect(emptyName.success).toBe(false);
     expect(valid.success).toBe(true);
     expect(overflowRows.success).toBe(false);
+  });
+
+  it('validates dynamic array child dependencies', async () => {
+    const formSchema = buildZodSchema(
+      [
+        {
+          component: 'Select',
+          fieldName: 'mode',
+          label: 'Mode',
+        },
+        {
+          children: [
+            {
+              component: 'Select',
+              fieldName: 'type',
+              label: 'Type',
+              rules: 'selectRequired',
+            },
+            {
+              component: 'Input',
+              dependencies: {
+                required: (values: any) => values.$row?.type === 'finance',
+                rules: (values: any) =>
+                  values.$row?.type === 'finance'
+                    ? z.string().min(1, 'Tax no is required')
+                    : z.string().optional(),
+                triggerFields: ['type'],
+              },
+              fieldName: 'taxNo',
+              label: 'Tax no',
+            },
+            {
+              component: 'Input',
+              dependencies: {
+                required: (values: any) =>
+                  values.$row?.type === 'tech' || values.mode === 'strict',
+                rules: (values: any) =>
+                  values.$row?.type === 'tech' || values.mode === 'strict'
+                    ? z.string().email('Email is invalid')
+                    : z.union([
+                        z.string().email('Email is invalid'),
+                        z.literal(''),
+                      ]),
+                triggerFields: ['type', '$root.mode'],
+              },
+              fieldName: 'email',
+              label: 'Email',
+            },
+          ],
+          component: 'Array',
+          fieldName: 'contacts',
+          minRows: 1,
+        },
+      ] as any,
+      {
+        controller: {} as any,
+        formApi: {} as any,
+      },
+    );
+
+    const businessWithoutTaxNo = await formSchema.safeParseAsync({
+      contacts: [{ email: '', taxNo: '', type: 'business' }],
+      mode: 'normal',
+    });
+    const financeWithoutTaxNo = await formSchema.safeParseAsync({
+      contacts: [{ email: 'finance@example.com', taxNo: '', type: 'finance' }],
+      mode: 'normal',
+    });
+    const techWithoutEmail = await formSchema.safeParseAsync({
+      contacts: [{ email: '', taxNo: '', type: 'tech' }],
+      mode: 'normal',
+    });
+    const strictWithoutEmail = await formSchema.safeParseAsync({
+      contacts: [{ email: '', taxNo: '', type: 'business' }],
+      mode: 'strict',
+    });
+    const strictWithEmail = await formSchema.safeParseAsync({
+      contacts: [
+        { email: 'business@example.com', taxNo: '', type: 'business' },
+      ],
+      mode: 'strict',
+    });
+
+    expect(businessWithoutTaxNo.success).toBe(true);
+    expect(financeWithoutTaxNo.success).toBe(false);
+    expect(techWithoutEmail.success).toBe(false);
+    expect(strictWithoutEmail.success).toBe(false);
+    expect(strictWithEmail.success).toBe(true);
+
+    expect(financeWithoutTaxNo.success).toBe(false);
+
+    const errors = zodErrorToFieldErrors(<ZodError>financeWithoutTaxNo.error);
+    expect(errors).toEqual({
+      'contacts[0].taxNo': ['Tax no is required'],
+    });
+  });
+
+  it('formats zod array issue paths as form field names', async () => {
+    const formSchema = buildZodSchema([
+      {
+        children: [
+          {
+            component: 'Input',
+            fieldName: 'name',
+            label: 'Name',
+            rules: z.string().min(1, 'Name is required'),
+          },
+        ],
+        component: 'Array',
+        fieldName: 'contacts',
+      },
+    ] as any);
+
+    const result = await formSchema.safeParseAsync({
+      contacts: [{ name: '' }],
+    });
+
+    expect(result.success).toBe(false);
+    const errors = zodErrorToFieldErrors(result.error as ZodError);
+    expect(errors['contacts[0].name']).toEqual(['Name is required']);
+    expect(errors['contacts.0.name']).toBeUndefined();
+  });
+
+  it('skips updateSchema state updates when no top-level schema matches', () => {
+    const formApi = new FormApi({
+      schema: [
+        {
+          component: 'Array',
+          fieldName: 'contacts',
+          children: [
+            {
+              component: 'Input',
+              fieldName: 'name',
+              label: 'Name',
+            },
+          ],
+        },
+      ] as any,
+    });
+    const previousState = formApi.state;
+    const previousSchema = formApi.state.schema;
+
+    formApi.updateSchema([
+      {
+        fieldName: 'contacts[0].name',
+        required: true,
+      } as any,
+    ]);
+
+    expect(formApi.state).toBe(previousState);
+    expect(formApi.state.schema).toBe(previousSchema);
   });
 
   it('handles array index paths', () => {

@@ -36,7 +36,7 @@ import {
 } from '../core/async-options';
 import { resolveFieldNamePath } from '../core/field-name';
 import { injectComponentRefMap } from '../use-form-context';
-import { isZodSchema } from '../zod/rules';
+import { isZodSchema, normalizeRule } from '../zod/rules';
 import { injectRenderFormProps, useFormContext } from './context';
 import useDependencies from './dependencies';
 import FormLabel from './form-label.vue';
@@ -320,6 +320,49 @@ function isEventObjectLike(value: any) {
   return isObject(value) && 'target' in value;
 }
 
+function getValidateTriggers() {
+  const trigger = props.validateTrigger ?? 'blur';
+  return Array.isArray(trigger) ? trigger : [trigger];
+}
+
+async function validateCurrentRule(value = fieldModelValue.value) {
+  const rule = normalizeRule(
+    {
+      ...props,
+      required: shouldRequired.value,
+      rules: currentRules.value,
+    } as any,
+    currentRules.value,
+  );
+  const result = await rule.safeParseAsync(value);
+  const nextErrors = result.success
+    ? []
+    : result.error.issues.map((issue) => issue.message).filter(Boolean);
+
+  formApi.value?.setFieldMeta?.(props.fieldName, (prev: any) => ({
+    ...prev,
+    errorMap: nextErrors.length > 0 ? { onChange: nextErrors } : {},
+    errors: nextErrors,
+    isValid: nextErrors.length === 0,
+  }));
+}
+
+function validateByTrigger(trigger: 'blur' | 'change' | 'input') {
+  if (getValidateTriggers().includes(trigger)) {
+    nextTick(() => validateCurrentRule());
+  }
+}
+
+function handleBlur(event: FocusEvent) {
+  props.field?.handleBlur?.(event);
+  validateByTrigger('blur');
+}
+
+watch(
+  () => currentRules.value,
+  () => validateCurrentRule(),
+);
+
 function unwrapValue(value: any, bindEventField: string) {
   if (isEventObjectLike(value)) {
     return value?.target?.[bindEventField] ?? value?.target?.value ?? value;
@@ -342,6 +385,8 @@ function updateValue(value: any) {
     return;
   }
   props.field?.handleChange?.(nextValue);
+  validateByTrigger('input');
+  validateByTrigger('change');
 }
 
 function createComponentProps() {
@@ -352,7 +397,7 @@ function createComponentProps() {
     [modelName]: value === undefined ? props.emptyStateValue : value,
     [`onUpdate:${modelName}`]: updateValue,
     name: props.fieldName,
-    onBlur: props.field?.handleBlur,
+    onBlur: handleBlur,
   };
 
   if (!props.disabledOnChangeListener) {
