@@ -17,11 +17,13 @@ import { isFormArraySchema } from '../core/types';
 import { setZodShapeByPath } from './path';
 import { isZodSchema, normalizeRule } from './rules';
 
-const emptyController = {} as ExtendedFormApi;
-const emptyFormActions = {} as FormActions;
+const emptyFormActions: FormActions = {};
+const emptyFormController: ExtendedFormApi = undefined!;
 
 export interface BuildZodSchemaOptions {
+  controller?: ExtendedFormApi;
   dynamicRules?: Record<string, FormSchemaRuleType | undefined>;
+  formApi?: FormActions;
   visibleFields?: Record<string, boolean>;
 }
 
@@ -53,7 +55,9 @@ export function buildZodSchema(
 
   return z.object(shape).superRefine(async (values, ctx) => {
     await Promise.all(
-      arraySchemas.map((schema) => validateArrayRows(schema, values, ctx)),
+      arraySchemas.map((schema) =>
+        validateArrayRows(schema, values, ctx, options),
+      ),
     );
   });
 }
@@ -71,6 +75,13 @@ function createArrayScopedValues(
     $index: index,
     $row: row ?? {},
     [arrayFieldName]: rows,
+  };
+}
+
+function getDependencyArgs(options: BuildZodSchemaOptions) {
+  return {
+    controller: options.controller ?? emptyFormController,
+    formApi: options.formApi ?? emptyFormActions,
   };
 }
 
@@ -93,15 +104,17 @@ function getValueByFieldName(source: Recordable, fieldName: string) {
 async function isArrayChildVisible(
   child: FormSchema,
   scopedValues: Recordable,
+  options: BuildZodSchemaOptions,
 ) {
   const dependencies = child.dependencies;
   if (child.hide || !dependencies) {
     return !child.hide;
   }
 
+  const { controller, formApi } = getDependencyArgs(options);
   const whenIf = dependencies.if;
   if (isFunction(whenIf)) {
-    if (!(await whenIf(scopedValues, emptyFormActions, emptyController))) {
+    if (!(await whenIf(scopedValues, formApi, controller))) {
       return false;
     }
   } else if (isBoolean(whenIf) && !whenIf) {
@@ -110,7 +123,7 @@ async function isArrayChildVisible(
 
   const show = dependencies.show;
   if (isFunction(show)) {
-    return !!(await show(scopedValues, emptyFormActions, emptyController));
+    return !!(await show(scopedValues, formApi, controller));
   }
   if (isBoolean(show)) {
     return show;
@@ -122,26 +135,24 @@ async function isArrayChildVisible(
 async function resolveArrayChildRule(
   child: FormSchema,
   scopedValues: Recordable,
+  options: BuildZodSchemaOptions,
 ) {
   const dependencies = child.dependencies;
   let required = child.required;
   let rule = child.rules;
 
   if (dependencies) {
+    const { controller, formApi } = getDependencyArgs(options);
     if (isFunction(dependencies.required)) {
       required = !!(await dependencies.required(
         scopedValues,
-        emptyFormActions,
-        emptyController,
+        formApi,
+        controller,
       ));
     }
 
     if (isFunction(dependencies.rules)) {
-      rule = await dependencies.rules(
-        scopedValues,
-        emptyFormActions,
-        emptyController,
-      );
+      rule = await dependencies.rules(scopedValues, formApi, controller);
     } else if (
       dependencies.required &&
       required === false &&
@@ -161,15 +172,16 @@ async function validateArrayChild(
   scopedValues: Recordable,
   child: FormSchema,
   ctx: z.RefinementCtx,
+  options: BuildZodSchemaOptions,
 ) {
   if (child.component === 'Array') {
     return;
   }
-  if (!(await isArrayChildVisible(child, scopedValues))) {
+  if (!(await isArrayChildVisible(child, scopedValues, options))) {
     return;
   }
 
-  const childRule = await resolveArrayChildRule(child, scopedValues);
+  const childRule = await resolveArrayChildRule(child, scopedValues, options);
   const childValue = getValueByFieldName(rowValue, child.fieldName);
   const result = await childRule.safeParseAsync(childValue);
   if (result.success) {
@@ -197,6 +209,7 @@ async function validateArrayRow(
   row: unknown,
   rowIndex: number,
   ctx: z.RefinementCtx,
+  options: BuildZodSchemaOptions,
 ) {
   if (!isFormArraySchema(schema)) {
     return;
@@ -213,7 +226,15 @@ async function validateArrayRow(
 
   await Promise.all(
     schema.children.map((child) =>
-      validateArrayChild(schema, rowIndex, rowValue, scopedValues, child, ctx),
+      validateArrayChild(
+        schema,
+        rowIndex,
+        rowValue,
+        scopedValues,
+        child,
+        ctx,
+        options,
+      ),
     ),
   );
 }
@@ -222,6 +243,7 @@ async function validateArrayRows(
   schema: FormSchema,
   values: Recordable,
   ctx: z.RefinementCtx,
+  options: BuildZodSchemaOptions,
 ) {
   if (!isFormArraySchema(schema)) {
     return;
@@ -234,7 +256,7 @@ async function validateArrayRows(
 
   await Promise.all(
     rows.map((row, rowIndex) =>
-      validateArrayRow(schema, values, rows, row, rowIndex, ctx),
+      validateArrayRow(schema, values, rows, row, rowIndex, ctx, options),
     ),
   );
 }
