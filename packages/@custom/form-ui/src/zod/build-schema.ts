@@ -43,9 +43,9 @@ export function buildZodSchema(
   }
 
   return z.object(shape).superRefine(async (values, ctx) => {
-    for (const schema of arraySchemas) {
-      await validateArrayRows(schema, values, ctx);
-    }
+    await Promise.all(
+      arraySchemas.map((schema) => validateArrayRows(schema, values, ctx)),
+    );
   });
 }
 
@@ -137,6 +137,70 @@ async function resolveArrayChildRule(
   return normalizeRule({ ...child, required }, rule) as ZodTypeAny;
 }
 
+async function validateArrayChild(
+  schema: FormSchema,
+  rowIndex: number,
+  rowValue: Recordable,
+  scopedValues: Recordable,
+  child: FormSchema,
+  ctx: z.RefinementCtx,
+) {
+  if (child.component === 'Array') {
+    return;
+  }
+  if (!(await isArrayChildVisible(child, scopedValues))) {
+    return;
+  }
+
+  const childRule = await resolveArrayChildRule(child, scopedValues);
+  const childValue = getValueByFieldName(rowValue, child.fieldName);
+  const result = await childRule.safeParseAsync(childValue);
+  if (result.success) {
+    return;
+  }
+
+  const childPath = getPathSegments(child.fieldName);
+  for (const childIssue of result.error.issues) {
+    ctx.addIssue({
+      ...childIssue,
+      path: [
+        schema.fieldName,
+        rowIndex,
+        ...childPath,
+        ...(childIssue.path ?? []),
+      ],
+    });
+  }
+}
+
+async function validateArrayRow(
+  schema: FormSchema,
+  values: Recordable,
+  rows: unknown[],
+  row: unknown,
+  rowIndex: number,
+  ctx: z.RefinementCtx,
+) {
+  if (!isFormArraySchema(schema)) {
+    return;
+  }
+
+  const rowValue = row && typeof row === 'object' ? (row as Recordable) : {};
+  const scopedValues = createArrayScopedValues(
+    values,
+    schema.fieldName,
+    rows,
+    row,
+    rowIndex,
+  );
+
+  await Promise.all(
+    schema.children.map((child) =>
+      validateArrayChild(schema, rowIndex, rowValue, scopedValues, child, ctx),
+    ),
+  );
+}
+
 async function validateArrayRows(
   schema: FormSchema,
   values: Recordable,
@@ -151,45 +215,11 @@ async function validateArrayRows(
     return;
   }
 
-  for (const [rowIndex, row] of rows.entries()) {
-    const rowValue = row && typeof row === 'object' ? (row as Recordable) : {};
-    const scopedValues = createArrayScopedValues(
-      values,
-      schema.fieldName,
-      rows,
-      row,
-      rowIndex,
-    );
-
-    for (const child of schema.children) {
-      if (child.component === 'Array') {
-        continue;
-      }
-      if (!(await isArrayChildVisible(child, scopedValues))) {
-        continue;
-      }
-
-      const childRule = await resolveArrayChildRule(child, scopedValues);
-      const childValue = getValueByFieldName(rowValue, child.fieldName);
-      const result = await childRule.safeParseAsync(childValue);
-      if (result.success) {
-        continue;
-      }
-
-      const childPath = getPathSegments(child.fieldName);
-      for (const childIssue of result.error.issues) {
-        ctx.addIssue({
-          ...childIssue,
-          path: [
-            schema.fieldName,
-            rowIndex,
-            ...childPath,
-            ...(childIssue.path ?? []),
-          ],
-        });
-      }
-    }
-  }
+  await Promise.all(
+    rows.map((row, rowIndex) =>
+      validateArrayRow(schema, values, rows, row, rowIndex, ctx),
+    ),
+  );
 }
 
 function buildArrayZodSchema(
