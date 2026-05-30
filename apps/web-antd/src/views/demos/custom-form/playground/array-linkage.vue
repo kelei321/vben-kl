@@ -9,8 +9,12 @@ import JsonPreview from './modules/json-preview.vue';
 
 const output = ref<Record<string, any>>({});
 
-const rowScopeDescription =
-  '数组 children 的 dependencies 默认使用 row 作用域：triggerFields: [\'type\'] 会解析到当前行 contacts[index].type。依赖回调 values 中额外提供 $row、$index、$array。使用 $root.xxx 或 scope: \'form\' 可访问根表单字段。';
+const rowScopeDescription = [
+  '数组 children 的 dependencies 默认使用 row 作用域：',
+  'triggerFields: [\'type\'] 会解析到当前行 contacts[index].type。',
+  '依赖回调 values 中额外提供 $row、$index、$array。',
+  '使用 $root.xxx 或 scope: \'form\' 可访问根表单字段。',
+].join('');
 
 const [ArrayLinkageForm, formApi] = useVbenForm({
   commonConfig: {
@@ -108,9 +112,14 @@ const [ArrayLinkageForm, formApi] = useVbenForm({
             placeholder: '由类型自动生成，可手动修改',
           },
           dependencies: {
-            componentProps: (values) => ({
-              placeholder: `第 ${Number(values.$index ?? 0) + 1} 行，当前类型：${values.$row?.type ?? '-'}`,
-            }),
+            componentProps: (values) => {
+              const rowIndex = Number(values.$index ?? 0) + 1;
+              const rowType = values.$row?.type ?? '-';
+
+              return {
+                placeholder: `第 ${rowIndex} 行，当前类型：${rowType}`,
+              };
+            },
             trigger: async (values, _form, controller) => {
               const remarkField = `contacts[${values.$index}].remark`;
               const typeLabelMap: Record<string, string> = {
@@ -129,8 +138,8 @@ const [ArrayLinkageForm, formApi] = useVbenForm({
       ],
       childrenWrapperClass: 'grid grid-cols-1 gap-x-4 md:grid-cols-3',
       component: 'Array',
-      copyExcludeFields: ['backendId'],
       copyable: true,
+      copyExcludeFields: ['backendId'],
       defaultItem: {
         backendId: 'server-id-001',
         email: '',
