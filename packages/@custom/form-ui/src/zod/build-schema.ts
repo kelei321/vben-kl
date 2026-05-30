@@ -18,7 +18,7 @@ import { setZodShapeByPath } from './path';
 import { isZodSchema, normalizeRule } from './rules';
 
 const emptyFormActions: FormActions = {};
-const emptyFormController: ExtendedFormApi = undefined!;
+const emptyFormController = {} as ExtendedFormApi;
 
 export interface BuildZodSchemaOptions {
   controller?: ExtendedFormApi;
