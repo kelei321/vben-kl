@@ -76,7 +76,7 @@ const customFormExampleRoutes: RouteRecordRaw[] = [
     },
     name: 'CustomTanStackFormArrayLinkageDemo',
     path: '/demos/custom-tanstack-form/array-linkage',
-    component: customFormExampleComponent,
+    redirect: '/demos/custom-tanstack-form/array',
   },
   {
     meta: {
