@@ -91,10 +91,7 @@ function createItem() {
 function createScopedValues(values: Recordable | undefined, index: number) {
   const formValues = values ?? {};
   const arrayValue = get(formValues, props.arraySchema.fieldName);
-  const rowValue = get(
-    formValues,
-    `${props.arraySchema.fieldName}[${index}]`,
-  );
+  const rowValue = get(formValues, `${props.arraySchema.fieldName}[${index}]`);
 
   return {
     ...formValues,
