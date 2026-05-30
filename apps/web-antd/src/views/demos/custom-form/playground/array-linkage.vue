@@ -11,9 +11,9 @@ const output = ref<Record<string, any>>({});
 
 const rowScopeDescription = [
   '数组 children 的 dependencies 默认使用 row 作用域：',
-  'triggerFields: [\'type\'] 会解析到当前行 contacts[index].type。',
+  "triggerFields: ['type'] 会解析到当前行 contacts[index].type。",
   '依赖回调 values 中额外提供 $row、$index、$array。',
-  '使用 $root.xxx 或 scope: \'form\' 可访问根表单字段。',
+  "使用 $root.xxx 或 scope: 'form' 可访问根表单字段。",
 ].join('');
 
 const [ArrayLinkageForm, formApi] = useVbenForm({
