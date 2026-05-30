@@ -5,7 +5,6 @@ import { Button, Card, message } from 'ant-design-vue';
 
 import { useVbenForm, z } from '#/adapter/custom-form';
 
-import ArrayLinkage from './array-linkage.vue';
 import JsonPreview from './modules/json-preview.vue';
 
 const output = ref<Record<string, any>>({});
@@ -164,7 +163,5 @@ async function handleApiAction(
       <ArrayForm />
       <JsonPreview class="mt-4" title="数组子表单输出" :value="output" />
     </Card>
-
-    <ArrayLinkage />
   </div>
 </template>

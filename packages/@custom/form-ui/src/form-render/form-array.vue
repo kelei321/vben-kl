@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { FormSchema, Recordable } from '../core/types';
+import type {
+  FormItemDependencies,
+  FormSchema,
+  Recordable,
+} from '../core/types';
 
 import { computed } from 'vue';
 
@@ -11,6 +15,11 @@ import { createDefaultItem } from '../zod/build-default-values';
 import { buildFieldValidator } from '../zod/rules';
 import { injectRenderFormProps, useFormContext } from './context';
 import FormField from './form-field.vue';
+
+interface CachedDependencies {
+  dependencies: FormItemDependencies;
+  source: FormItemDependencies;
+}
 
 interface Props {
   arraySchema: any;
@@ -31,6 +40,7 @@ const defaultCopyExcludeFields = [
   'createdAt',
   'updatedAt',
 ];
+const dependencyCache = new Map<string, CachedDependencies>();
 const rowKeyMap = new WeakMap<object, string>();
 let rowKeySeed = 0;
 
@@ -128,6 +138,12 @@ function resolveChildDependencies(child: FormSchema, index: number) {
     return dependencies;
   }
 
+  const cacheKey = `${child.fieldName}:${index}`;
+  const cached = dependencyCache.get(cacheKey);
+  if (cached?.source === dependencies) {
+    return cached.dependencies;
+  }
+
   const scope = dependencies.scope ?? 'row';
   const triggerFields =
     scope === 'form'
@@ -136,7 +152,7 @@ function resolveChildDependencies(child: FormSchema, index: number) {
           resolveRowTriggerField(field, index),
         );
 
-  return {
+  const resolvedDependencies = {
     ...dependencies,
     componentProps: wrapDependencyCallback(dependencies.componentProps, index),
     disabled: wrapDependencyCallback(dependencies.disabled, index),
@@ -147,6 +163,13 @@ function resolveChildDependencies(child: FormSchema, index: number) {
     trigger: wrapDependencyCallback(dependencies.trigger, index),
     triggerFields,
   };
+
+  dependencyCache.set(cacheKey, {
+    dependencies: resolvedDependencies,
+    source: dependencies,
+  });
+
+  return resolvedDependencies;
 }
 
 function resolveChildSchema(child: FormSchema, index: number) {

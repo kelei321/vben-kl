@@ -7,6 +7,7 @@ import { Page } from '@vben/common-ui';
 import { Card } from 'ant-design-vue';
 
 import PlaygroundApi from './playground/api.vue';
+import PlaygroundArrayLinkage from './playground/array-linkage.vue';
 import PlaygroundArray from './playground/array.vue';
 import PlaygroundBasic from './playground/basic.vue';
 import PlaygroundCollapsible from './playground/collapsible.vue';
@@ -70,6 +71,12 @@ const examples = [
     description: '对象数组子表单、行级增删复制排序、子字段校验。',
     key: 'array',
     label: '数组子表单',
+  },
+  {
+    component: PlaygroundArrayLinkage,
+    description: '数组行内联动、根字段联动、复制过滤字段和行布局扩展。',
+    key: 'array-linkage',
+    label: '数组联动',
   },
   {
     component: PlaygroundMerge,
