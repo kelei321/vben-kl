@@ -31,6 +31,25 @@ const props = defineProps<Props>();
 useFormContext();
 const formRenderProps = injectRenderFormProps();
 
+const arrayOnlySchemaFields = [
+  'addButtonText',
+  'children',
+  'childrenWrapperClass',
+  'component',
+  'copyable',
+  'copyExcludeFields',
+  'copyValue',
+  'defaultItem',
+  'defaultValue',
+  'description',
+  'fieldName',
+  'label',
+  'maxRows',
+  'minRows',
+  'removeButtonText',
+  'rowClass',
+  'sortable',
+];
 const defaultCopyExcludeFields = [
   'id',
   '_id',
@@ -132,6 +151,16 @@ function getRowKey(row: Recordable, index: number) {
   return `array-row-${index}`;
 }
 
+function resolveArraySharedSchema() {
+  const sharedSchema = { ...props.arraySchema };
+
+  for (const field of arrayOnlySchemaFields) {
+    Reflect.deleteProperty(sharedSchema, field);
+  }
+
+  return sharedSchema;
+}
+
 function resolveChildDependencies(child: FormSchema, index: number) {
   const dependencies = child.dependencies;
   if (!dependencies) {
@@ -177,8 +206,8 @@ function resolveChildSchema(child: FormSchema, index: number) {
     ? child.formItemClass
     : cn('min-w-0', child.formItemClass);
 
-  const schema = {
-    ...props.arraySchema,
+  return {
+    ...resolveArraySharedSchema(),
     ...child,
     dependencies: resolveChildDependencies(child, index),
     disabled: child.disabled ?? props.arraySchema.disabled,
@@ -188,9 +217,6 @@ function resolveChildSchema(child: FormSchema, index: number) {
     labelWidth: child.labelWidth ?? props.arraySchema.labelWidth,
     wrapperClass: child.wrapperClass ?? props.arraySchema.wrapperClass,
   };
-
-  Reflect.deleteProperty(schema, 'children');
-  return schema;
 }
 
 function resolveCopyValue(row: Recordable, index: number) {
