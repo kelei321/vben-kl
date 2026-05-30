@@ -124,6 +124,10 @@ const currentRules = computed(() =>
 
 const visible = computed(() => !props.hide && isIf.value && isShow.value);
 
+const hasControlledRequired = computed(() =>
+  Object.prototype.hasOwnProperty.call(props.dependencies ?? {}, 'required'),
+);
+
 const asyncOptionsQueryKey = computed(() =>
   buildAsyncOptionsQueryKey(props.fieldName, values.value, props.asyncOptions),
 );
@@ -171,6 +175,9 @@ const resolvedAsyncOptions = computed(() =>
 const shouldRequired = computed(() => {
   if (!visible.value) {
     return false;
+  }
+  if (hasControlledRequired.value) {
+    return isRequired.value;
   }
   if (isRequired.value || props.required) {
     return true;
