@@ -7,14 +7,15 @@ import type {
 
 import { computed } from 'vue';
 
-import { ArrowDown, ArrowUp, Copy, Plus, X } from '@vben-core/icons';
+import { Plus } from '@vben-core/icons';
 import { Button, VbenRenderContent } from '@vben-core/shadcn-ui';
 import { cloneDeep, cn, get, isFunction } from '@vben-core/shared/utils';
 
 import { createDefaultItem } from '../zod/build-default-values';
 import { buildFieldValidator } from '../zod/rules';
+import ArrayRowActions from './array-row-actions.vue';
+import ArrayRowFields from './array-row-fields.vue';
 import { injectRenderFormProps, useFormContext } from './context';
-import FormField from './form-field.vue';
 
 interface CachedDependencies {
   dependencies: FormItemDependencies;
@@ -99,6 +100,7 @@ const defaultItemTemplate = computed(
     props.arraySchema.defaultItem ??
     createDefaultItem(props.arraySchema.children ?? []),
 );
+const layoutSlotName = computed(() => `${props.arraySchema.fieldName}-layout`);
 
 const rowSchemas = computed(() => {
   return rows.value.map((row, rowIndex) => ({
@@ -298,6 +300,13 @@ function handleRemove(index: number) {
     props.field?.removeValue?.(index);
   }
 }
+
+const arrayActions = {
+  add: handleAdd,
+  copy: handleCopy,
+  move: handleMove,
+  remove: handleRemove,
+};
 </script>
 
 <template>
@@ -311,120 +320,72 @@ function handleRemove(index: number) {
       </div>
     </div>
 
-    <div
-      v-for="rowState in rowSchemas"
-      :key="rowState.rowKey"
-      :class="
-        cn(
-          'border-border bg-card space-y-3 rounded-md border p-3',
-          rowState.rowClass,
-        )
-      "
-    >
-      <slot
-        :index="rowState.rowIndex"
-        :name="`${arraySchema.fieldName}-row-before`"
-        :row="rowState.row"
-      ></slot>
+    <slot
+      v-if="$slots[layoutSlotName]"
+      :name="layoutSlotName"
+      :actions="arrayActions"
+      :array-row-actions="ArrayRowActions"
+      :array-row-fields="ArrayRowFields"
+      :array-schema="arraySchema"
+      :can-add="canAdd"
+      :can-remove="canRemove"
+      :field="field"
+      :is-disabled="isDisabled"
+      :rows="rowSchemas"
+      :rows-length="rows.length"
+      :slots="$slots"
+    ></slot>
 
-      <div class="flex items-center justify-between gap-2">
-        <div class="text-muted-foreground text-xs">
-          {{ rowState.rowIndex + 1 }}
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
+    <template v-else>
+      <div
+        v-for="rowState in rowSchemas"
+        :key="rowState.rowKey"
+        :class="
+          cn(
+            'border-border bg-card space-y-3 rounded-md border p-3',
+            rowState.rowClass,
+          )
+        "
+      >
+        <slot
+          :index="rowState.rowIndex"
+          :name="`${arraySchema.fieldName}-row-before`"
+          :row="rowState.row"
+        ></slot>
+
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-muted-foreground text-xs">
+            {{ rowState.rowIndex + 1 }}
+          </div>
           <slot
             :field="field"
             :index="rowState.rowIndex"
             :name="`${arraySchema.fieldName}-actions`"
             :row="rowState.row"
           >
-            <Button
-              v-if="arraySchema.sortable"
-              aria-label="上移"
-              :disabled="isDisabled || rowState.rowIndex === 0"
-              size="icon"
-              title="上移"
-              type="button"
-              variant="ghost"
-              @click="handleMove(rowState.rowIndex, rowState.rowIndex - 1)"
-            >
-              <ArrowUp class="size-4" />
-            </Button>
-            <Button
-              v-if="arraySchema.sortable"
-              aria-label="下移"
-              :disabled="isDisabled || rowState.rowIndex === rows.length - 1"
-              size="icon"
-              title="下移"
-              type="button"
-              variant="ghost"
-              @click="handleMove(rowState.rowIndex, rowState.rowIndex + 1)"
-            >
-              <ArrowDown class="size-4" />
-            </Button>
-            <Button
-              v-if="arraySchema.copyable"
-              aria-label="复制"
-              :disabled="!canAdd"
-              size="icon"
-              title="复制"
-              type="button"
-              variant="ghost"
-              @click="handleCopy(rowState.rowIndex)"
-            >
-              <Copy class="size-4" />
-            </Button>
-            <Button
-              :aria-label="arraySchema.removeButtonText ?? '删除'"
-              :disabled="!canRemove"
-              size="icon"
-              :title="arraySchema.removeButtonText ?? '删除'"
-              type="button"
-              variant="ghost"
-              @click="handleRemove(rowState.rowIndex)"
-            >
-              <X class="size-4" />
-            </Button>
+            <ArrayRowActions
+              :actions="arrayActions"
+              :array-schema="arraySchema"
+              :can-add="canAdd"
+              :can-remove="canRemove"
+              :is-disabled="isDisabled"
+              :rows-length="rows.length"
+              :row-state="rowState"
+            />
           </slot>
         </div>
+
+        <ArrayRowFields :array-schema="arraySchema" :row-state="rowState" />
+
+        <slot
+          :index="rowState.rowIndex"
+          :name="`${arraySchema.fieldName}-row-after`"
+          :row="rowState.row"
+        ></slot>
       </div>
+    </template>
 
-      <div
-        :class="
-          cn(
-            'grid grid-cols-1 gap-x-4 md:grid-cols-2',
-            arraySchema.childrenWrapperClass,
-          )
-        "
-      >
-        <template
-          v-for="childState in rowState.children"
-          :key="childState.fieldName"
-        >
-          <component
-            :is="formRenderProps.form?.Field"
-            v-if="formRenderProps.form?.Field"
-            :name="childState.fieldName"
-            :validators="childState.validators"
-            v-slot="{ field: childField }"
-          >
-            <FormField
-              v-bind="childState.schema"
-              :common-component-props="arraySchema.commonComponentProps ?? {}"
-              :field="childField"
-            />
-          </component>
-        </template>
-      </div>
-
-      <slot
-        :index="rowState.rowIndex"
-        :name="`${arraySchema.fieldName}-row-after`"
-        :row="rowState.row"
-      ></slot>
-    </div>
-
-    <div class="flex justify-start">
+    <div v-if="!$slots[layoutSlotName]" class="flex justify-start">
       <Button
         :disabled="!canAdd"
         size="sm"
