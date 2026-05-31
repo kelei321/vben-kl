@@ -6,6 +6,8 @@ import type {
 
 import { defineComponent, h, isReactive, onBeforeUnmount, watch } from 'vue';
 
+import { isEqual } from '@vben-core/shared/utils';
+
 import { useSelector } from '@tanstack/vue-store';
 
 import { FormApi } from './core/form-api';
@@ -28,7 +30,15 @@ export function useVbenForm<
       onBeforeUnmount(() => {
         api.unmount();
       });
-      api.setState({ ...props, ...attrs });
+      watch(
+        () => ({ ...props, ...attrs }),
+        (nextState) => {
+          if (!isEqual(api.getState(), { ...api.getState(), ...nextState })) {
+            api.setState(nextState);
+          }
+        },
+        { deep: true, immediate: true },
+      );
       return () =>
         h(VbenUseForm, { ...props, ...attrs, formApi: extendedApi }, slots);
     },

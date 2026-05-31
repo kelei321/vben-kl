@@ -2,6 +2,8 @@ import type { ZodTypeAny } from 'zod';
 
 import type { FormSchema } from '../core/types';
 
+import { cloneDeep } from '@vben-core/shared/utils';
+
 import { isFormArraySchema } from '../core/types';
 import { setValueByPath } from './path';
 import { isZodSchema } from './rules';
@@ -52,11 +54,11 @@ function normalizeArrayDefaultValue(schema: FormSchema) {
   const configured = Reflect.has(schema, 'defaultValue')
     ? schema.defaultValue
     : [];
-  const values = Array.isArray(configured) ? [...configured] : [];
+  const values = Array.isArray(configured) ? cloneDeep(configured) : [];
   while (values.length < minRows) {
-    values.push({
-      ...(schema.defaultItem ?? createDefaultItem(schema.children)),
-    });
+    values.push(
+      cloneDeep(schema.defaultItem ?? createDefaultItem(schema.children)),
+    );
   }
   return values;
 }

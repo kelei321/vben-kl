@@ -5,7 +5,7 @@ import type {
   Recordable,
 } from '../core/types';
 
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 import { Plus } from '@vben-core/icons';
 import { Button, VbenRenderContent } from '@vben-core/shadcn-ui';
@@ -113,6 +113,23 @@ const rowSchemas = computed(() => {
     rowKey: getRowKey(row, rowIndex),
   }));
 });
+
+watch(
+  () => [
+    rows.value.length,
+    props.arraySchema.children,
+    props.arraySchema.childrenWrapperClass,
+    props.arraySchema.commonComponentProps,
+    props.arraySchema.disabled,
+    props.arraySchema.labelWidth,
+    props.arraySchema.wrapperClass,
+  ],
+  () => {
+    childStateCache.clear();
+    dependencyCache.clear();
+  },
+  { deep: true },
+);
 
 function createItem() {
   return cloneDeep(defaultItemTemplate.value);

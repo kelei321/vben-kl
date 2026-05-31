@@ -121,6 +121,7 @@ const {
 const currentRules = computed(() =>
   dynamicRules.value === undefined ? props.rules : dynamicRules.value,
 );
+let validateEffectId = 0;
 
 const visible = computed(() => !props.hide && isIf.value && isShow.value);
 
@@ -326,6 +327,7 @@ function getValidateTriggers() {
 }
 
 async function validateCurrentRule(value = fieldModelValue.value) {
+  const currentEffectId = ++validateEffectId;
   const rule = normalizeRule(
     {
       ...props,
@@ -335,6 +337,9 @@ async function validateCurrentRule(value = fieldModelValue.value) {
     currentRules.value,
   );
   const result = await rule.safeParseAsync(value);
+  if (currentEffectId !== validateEffectId) {
+    return;
+  }
   const nextErrors = result.success
     ? []
     : result.error.issues.map((issue) => issue.message).filter(Boolean);

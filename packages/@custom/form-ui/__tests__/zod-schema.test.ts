@@ -1,6 +1,6 @@
 import type { ZodError } from 'zod';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { FormApi } from '../src/core/form-api';
@@ -30,7 +30,11 @@ const schema = [
   },
 ] as any;
 
-function createMountedFormApi(schema: any[], values: Record<string, any>) {
+function createMountedFormApi(
+  schema: any[],
+  values: Record<string, any>,
+  formOverrides: Record<string, any> = {},
+) {
   const formApi = new FormApi({ schema });
   const fieldMeta: Record<string, any> = {};
   const form = {
@@ -38,6 +42,7 @@ function createMountedFormApi(schema: any[], values: Record<string, any>) {
     setFieldMeta(fieldName: string, updater: (prev: any) => any) {
       fieldMeta[fieldName] = updater(fieldMeta[fieldName] ?? {});
     },
+    ...formOverrides,
   };
 
   formApi.mount(form as any);
@@ -97,6 +102,28 @@ describe('custom form zod schema builder', () => {
         { name: '', phone: '' },
       ],
     });
+  });
+
+  it('deep clones object array default values', () => {
+    const defaults = buildDefaultValues([
+      {
+        children: [
+          {
+            component: 'Input',
+            fieldName: 'profile.name',
+            label: 'Name',
+          },
+        ],
+        component: 'Array',
+        defaultItem: { profile: { name: 'default' } },
+        fieldName: 'contacts',
+        minRows: 2,
+      },
+    ] as any);
+
+    defaults.contacts[0].profile.name = 'changed';
+
+    expect(defaults.contacts[1].profile.name).toBe('default');
   });
 
   it('validates object array child fields and row limits', async () => {
@@ -311,6 +338,59 @@ describe('custom form zod schema builder', () => {
       errors: ['Username is required'],
       isValid: false,
     });
+  });
+
+  it('does not call tanstack submit validators during manual validate', async () => {
+    const validate = vi.fn();
+    const asyncRule = vi.fn();
+    const { formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          label: 'Username',
+          rules: z.string().superRefine(async () => {
+            asyncRule();
+          }),
+        },
+      ],
+      { username: 'kelei' },
+      { validate },
+    );
+
+    await formApi.validate();
+
+    expect(validate).not.toHaveBeenCalled();
+    expect(asyncRule).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips hidden fields during submit validation', async () => {
+    const { formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'hiddenName',
+          hide: true,
+          label: 'Hidden name',
+          rules: z.string().min(1, 'Hidden name is required'),
+        },
+        {
+          component: 'Input',
+          dependencies: {
+            show: false,
+            triggerFields: ['visibleName'],
+          },
+          fieldName: 'dependencyHiddenName',
+          label: 'Dependency hidden name',
+          rules: z.string().min(1, 'Dependency hidden name is required'),
+        },
+      ],
+      { dependencyHiddenName: '', hiddenName: '' },
+    );
+
+    const result = await formApi.validate();
+
+    expect(result).toEqual({ errors: {}, valid: true });
   });
 
   it('clears previous validate errors from field meta after success', async () => {

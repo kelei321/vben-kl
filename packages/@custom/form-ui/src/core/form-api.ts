@@ -77,6 +77,13 @@ function mergePatch<T extends Recordable<any>>(base: T, patch: Partial<T>) {
   return next as T;
 }
 
+function escapeCssSelector(value: string) {
+  if (typeof CSS !== 'undefined' && isFunction(CSS.escape)) {
+    return CSS.escape(value);
+  }
+  return value.replaceAll(/["\\]/g, String.raw`\$&`);
+}
+
 export class FormApi {
   public form = {} as FormActions;
   public isMounted = false;
@@ -384,16 +391,17 @@ export class FormApi {
       return;
     }
 
-    let el = document.querySelector(
-      `[name="${firstErrorFieldName}"]`,
-    ) as HTMLElement;
+    const componentRef = this.getFieldComponentRef(firstErrorFieldName) as any;
+    let el: HTMLElement | undefined;
+    if (componentRef instanceof HTMLElement) {
+      el = componentRef;
+    } else if (componentRef?.$el instanceof HTMLElement) {
+      el = componentRef.$el;
+    }
     if (!el) {
-      const componentRef = this.getFieldComponentRef(
-        firstErrorFieldName,
-      ) as any;
-      if (componentRef?.$el instanceof HTMLElement) {
-        el = componentRef.$el;
-      }
+      el = document.querySelector(
+        `[name="${escapeCssSelector(firstErrorFieldName)}"]`,
+      ) as HTMLElement;
     }
 
     el?.scrollIntoView({
@@ -421,7 +429,7 @@ export class FormApi {
   }
 
   setLatestSubmissionValues(values: null | Recordable<any>) {
-    this.latestSubmissionValues = values ? { ...toRaw(values) } : null;
+    this.latestSubmissionValues = values ? cloneDeep(toRaw(values)) : null;
   }
 
   setSchema(schema: FormSchema[]) {
@@ -562,20 +570,14 @@ export class FormApi {
 
   async validate() {
     const form = await this.getForm();
-    if (typeof form.validate === 'function') {
-      try {
-        await form.validate('submit');
-      } catch {
-        // TanStack 不同版本 validate 签名可能略有差异，
-        // 下面仍会用 Zod 兜底计算结果。
-      }
-    }
-
+    const values = form.state?.values ?? {};
+    const visibleFields = await this.resolveVisibleFields(form, values);
     const schema = buildZodSchema(this.state.schema ?? [], {
       controller: this,
       formApi: form,
+      visibleFields,
     });
-    const result = await schema.safeParseAsync(form.state?.values ?? {});
+    const result = await schema.safeParseAsync(values);
 
     if (result.success) {
       this.syncValidationErrors(form, {});
@@ -599,18 +601,16 @@ export class FormApi {
 
   async validateField(fieldName: string) {
     const form = await this.getForm();
-    if (typeof form.validateField === 'function') {
-      try {
-        await form.validateField(fieldName, 'submit');
-      } catch {
-        // ignore, manual zod validation below
-      }
-    }
-
     const schema = (this.state.schema ?? []).find(
       (item) => item.fieldName === fieldName,
     );
     if (!schema) {
+      return { errors: {}, valid: true };
+    }
+    if (
+      !(await this.resolveSchemaVisible(schema, form, form.state?.values ?? {}))
+    ) {
+      this.clearFieldErrors(form, fieldName);
       return { errors: {}, valid: true };
     }
     const fullSchema = buildZodSchema([schema], {
@@ -881,6 +881,46 @@ export class FormApi {
       {}) as VbenFormProps;
   }
 
+  private async resolveSchemaVisible(
+    schema: FormSchema,
+    form: FormActions,
+    values: Record<string, any>,
+  ) {
+    if (schema.hide) {
+      return false;
+    }
+
+    const dependencies = schema.dependencies;
+    if (!dependencies) {
+      return true;
+    }
+
+    try {
+      const whenIf = dependencies.if;
+      if (typeof whenIf === 'boolean' && !whenIf) {
+        return false;
+      }
+      if (isFunction(whenIf) && !(await whenIf(values, form, this))) {
+        return false;
+      }
+
+      const show = dependencies.show;
+      if (typeof show === 'boolean') {
+        return show;
+      }
+      if (isFunction(show)) {
+        return !!(await show(values, form, this));
+      }
+    } catch (error) {
+      console.error(
+        `[VbenForm] dependencies visibility failed: ${schema.fieldName}`,
+        error,
+      );
+    }
+
+    return true;
+  }
+
   private resolveValueByFieldName(
     values: Record<string, any>,
     fieldName: string,
@@ -893,6 +933,25 @@ export class FormApi {
       return values[fieldName];
     }
     return get(values, fieldName);
+  }
+
+  private async resolveVisibleFields(
+    form: FormActions,
+    values: Record<string, any>,
+  ) {
+    const visibleFields: Record<string, boolean> = {};
+
+    await Promise.all(
+      (this.state.schema ?? []).map(async (schema) => {
+        visibleFields[schema.fieldName] = await this.resolveSchemaVisible(
+          schema,
+          form,
+          values,
+        );
+      }),
+    );
+
+    return visibleFields;
   }
 
   private setFieldErrors(

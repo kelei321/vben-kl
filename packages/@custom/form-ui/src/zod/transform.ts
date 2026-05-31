@@ -1,12 +1,14 @@
 import type { FormSchema } from '../core/types';
 
+import { cloneDeep } from '@vben-core/shared/utils';
+
 import { deleteValueByPath, getValueByPath, setValueByPath } from './path';
 
 export function applySchemaValueTransforms(
   schemas: FormSchema[] = [],
   originValues: Record<string, any>,
 ) {
-  const values = { ...originValues };
+  const values = cloneDeep(originValues);
 
   for (const schema of schemas) {
     if (!('transform' in schema)) {
