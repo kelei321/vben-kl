@@ -30,6 +30,21 @@ const schema = [
   },
 ] as any;
 
+function createMountedFormApi(schema: any[], values: Record<string, any>) {
+  const formApi = new FormApi({ schema });
+  const fieldMeta: Record<string, any> = {};
+  const form = {
+    state: { values },
+    setFieldMeta(fieldName: string, updater: (prev: any) => any) {
+      fieldMeta[fieldName] = updater(fieldMeta[fieldName] ?? {});
+    },
+  };
+
+  formApi.mount(form as any);
+
+  return { fieldMeta, formApi, values };
+}
+
 describe('custom form zod schema builder', () => {
   it('builds nested default values from schema', () => {
     expect(buildDefaultValues(schema)).toEqual({
@@ -270,6 +285,91 @@ describe('custom form zod schema builder', () => {
 
     expect(formApi.state).toBe(previousState);
     expect(formApi.state.schema).toBe(previousSchema);
+  });
+
+  it('syncs validate errors to field meta on submit validation', async () => {
+    const { fieldMeta, formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          label: 'Username',
+          rules: z.string().min(1, 'Username is required'),
+        },
+      ],
+      { username: '' },
+    );
+
+    const result = await formApi.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual({
+      username: ['Username is required'],
+    });
+    expect(fieldMeta.username).toMatchObject({
+      errorMap: { onSubmit: ['Username is required'] },
+      errors: ['Username is required'],
+      isValid: false,
+    });
+  });
+
+  it('clears previous validate errors from field meta after success', async () => {
+    const { fieldMeta, formApi, values } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          label: 'Username',
+          rules: z.string().min(1, 'Username is required'),
+        },
+      ],
+      { username: '' },
+    );
+
+    await formApi.validate();
+    values.username = 'kelei';
+    const result = await formApi.validate();
+
+    expect(result.valid).toBe(true);
+    expect(fieldMeta.username).toMatchObject({
+      errorMap: {},
+      errors: [],
+      isValid: true,
+    });
+  });
+
+  it('syncs array child validate errors to bracket field meta paths', async () => {
+    const { fieldMeta, formApi } = createMountedFormApi(
+      [
+        {
+          children: [
+            {
+              component: 'Input',
+              fieldName: 'taxNo',
+              label: 'Tax no',
+              rules: z.string().min(1, 'Tax no is required'),
+            },
+          ],
+          component: 'Array',
+          fieldName: 'contacts',
+          minRows: 1,
+        },
+      ],
+      { contacts: [{ taxNo: '' }] },
+    );
+
+    const result = await formApi.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual({
+      'contacts[0].taxNo': ['Tax no is required'],
+    });
+    expect(fieldMeta['contacts[0].taxNo']).toMatchObject({
+      errorMap: { onSubmit: ['Tax no is required'] },
+      errors: ['Tax no is required'],
+      isValid: false,
+    });
+    expect(fieldMeta['contacts.0.taxNo']).toBeUndefined();
   });
 
   it('handles array index paths', () => {

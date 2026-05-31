@@ -88,6 +88,7 @@ export class FormApi {
   private mountedDeferred = createDeferred();
   private optionsQueryKeyMap: Map<string, unknown[]> = new Map();
   private prevState: null | VbenFormProps = null;
+  private validationErrorFields: Set<string> = new Set();
 
   constructor(options: VbenFormProps = {}) {
     this.store = createFormStore(options);
@@ -152,15 +153,13 @@ export class FormApi {
     }
     if (!targetFields) {
       form.setErrorMap?.({});
+      for (const field of this.collectValidationFields({})) {
+        this.clearFieldErrors(form, field);
+      }
       return;
     }
     for (const field of targetFields) {
-      form.setFieldMeta?.(field, (prev: any) => ({
-        ...prev,
-        errorMap: {},
-        errors: [],
-        isValid: true,
-      }));
+      this.clearFieldErrors(form, field);
     }
   }
 
@@ -406,12 +405,11 @@ export class FormApi {
 
   async setFieldError(fieldName: string, message?: string) {
     const form = await this.getForm();
-    form.setFieldMeta?.(fieldName, (prev: any) => ({
-      ...prev,
-      errorMap: message ? { onSubmit: message } : {},
-      errors: message ? [message] : [],
-      isValid: !message,
-    }));
+    if (message) {
+      this.setFieldErrors(form, fieldName, [message]);
+    } else {
+      this.clearFieldErrors(form, fieldName);
+    }
   }
 
   async setFieldValue(field: string, value: any, shouldValidate?: boolean) {
@@ -580,10 +578,12 @@ export class FormApi {
     const result = await schema.safeParseAsync(form.state?.values ?? {});
 
     if (result.success) {
+      this.syncValidationErrors(form, {});
       return { errors: {}, valid: true };
     }
 
     const errors = zodErrorToFieldErrors(result.error);
+    this.syncValidationErrors(form, errors);
     if (Object.keys(errors).length > 0) {
       console.error('validate error', errors);
       if (this.state?.scrollToFirstError) {
@@ -619,25 +619,25 @@ export class FormApi {
     });
     const result = await fullSchema.safeParseAsync(form.state?.values ?? {});
     if (result.success) {
-      form.setFieldMeta?.(fieldName, (prev: any) => ({
-        ...prev,
-        errorMap: {},
-        errors: [],
-        isValid: true,
-      }));
+      this.clearFieldErrors(form, fieldName);
       return { errors: {}, valid: true };
     }
     const errors = zodErrorToFieldErrors(result.error);
-    form.setFieldMeta?.(fieldName, (prev: any) => ({
-      ...prev,
-      errorMap: errors[fieldName] ? { onSubmit: errors[fieldName] } : {},
-      errors: errors[fieldName] ?? [],
-      isValid: false,
-    }));
+    this.setFieldErrors(form, fieldName, errors[fieldName] ?? []);
     if (this.state?.scrollToFirstError) {
       this.scrollToFirstError(fieldName);
     }
     return { errors, valid: false };
+  }
+
+  private clearFieldErrors(form: FormActions, fieldName: string) {
+    form.setFieldMeta?.(fieldName, (prev: any) => ({
+      ...prev,
+      errorMap: {},
+      errors: [],
+      isValid: true,
+    }));
+    this.validationErrorFields.delete(fieldName);
   }
 
   private collectFieldsByMeta(key: 'isDirty' | 'isTouched') {
@@ -650,6 +650,15 @@ export class FormApi {
       }
     }
     return result;
+  }
+
+  private collectValidationFields(errors: Record<string, string[]>) {
+    return new Set([
+      ...this.componentRefMap.keys(),
+      ...this.validationErrorFields,
+      ...Object.keys(errors),
+      ...(this.state.schema ?? []).map((item) => item.fieldName),
+    ]);
   }
 
   private createDefaultArrayItem(fieldName: string) {
@@ -886,6 +895,25 @@ export class FormApi {
     return get(values, fieldName);
   }
 
+  private setFieldErrors(
+    form: FormActions,
+    fieldName: string,
+    errors: string[],
+  ) {
+    if (errors.length === 0) {
+      this.clearFieldErrors(form, fieldName);
+      return;
+    }
+
+    form.setFieldMeta?.(fieldName, (prev: any) => ({
+      ...prev,
+      errorMap: { onSubmit: errors },
+      errors,
+      isValid: false,
+    }));
+    this.validationErrorFields.add(fieldName);
+  }
+
   private setFieldValueIfChanged(
     form: FormActions,
     fieldName: string,
@@ -914,6 +942,16 @@ export class FormApi {
       return;
     }
     set(values, fieldName, value);
+  }
+
+  private syncValidationErrors(
+    form: FormActions,
+    errors: Record<string, string[]>,
+  ) {
+    const fields = this.collectValidationFields(errors);
+    for (const fieldName of fields) {
+      this.setFieldErrors(form, fieldName, errors[fieldName] ?? []);
+    }
   }
 
   private updateState() {
