@@ -18,14 +18,20 @@ import { useVbenForm, z } from '#/adapter/custom-form';
 import JsonPreview from './modules/json-preview.vue';
 
 type MetricName =
+  | 'arrayInput'
+  | 'arrayRows'
   | 'asyncRace'
   | 'batchSet'
   | 'cityReset'
   | 'mirrorWrite'
   | 'selfNormalize'
+  | 'submit'
   | 'validate';
 
 interface MetricsState {
+  arrayInputMs: number;
+  arrayRows: number;
+  arrayRowsMs: number;
   asyncRaceCount: number;
   batchSetMs: number;
   cityResetCount: number;
@@ -33,6 +39,7 @@ interface MetricsState {
   lastRunMs: number;
   mirrorWriteCount: number;
   selfNormalizeCount: number;
+  submitMs: number;
   validateMs: number;
   valuesChangeCount: number;
 }
@@ -73,6 +80,9 @@ const stressAlertMessage = '该示例用于压测自定义 TanStack Form 封装�
 const fieldCount = ref(80);
 const output = ref<Record<string, any>>({});
 const metrics = ref<MetricsState>({
+  arrayInputMs: 0,
+  arrayRows: 0,
+  arrayRowsMs: 0,
   asyncRaceCount: 0,
   batchSetMs: 0,
   cityResetCount: 0,
@@ -80,6 +90,7 @@ const metrics = ref<MetricsState>({
   lastRunMs: 0,
   mirrorWriteCount: 0,
   selfNormalizeCount: 0,
+  submitMs: 0,
   validateMs: 0,
   valuesChangeCount: 0,
 });
@@ -129,6 +140,12 @@ function waitFrame() {
 function markMetric(name: MetricName, duration = 0) {
   const current = metrics.value;
 
+  if (name === 'arrayInput') {
+    current.arrayInputMs = duration;
+  }
+  if (name === 'arrayRows') {
+    current.arrayRowsMs = duration;
+  }
   if (name === 'asyncRace') {
     current.asyncRaceCount += 1;
   }
@@ -144,11 +161,23 @@ function markMetric(name: MetricName, duration = 0) {
   if (name === 'selfNormalize') {
     current.selfNormalizeCount += 1;
   }
+  if (name === 'submit') {
+    current.submitMs = duration;
+  }
   if (name === 'validate') {
     current.validateMs = duration;
   }
 
   metrics.value = { ...current, lastRunMs: duration || current.lastRunMs };
+}
+
+function createStressContacts(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    code: index % 2 === 0 ? ` CODE-${index} ` : '',
+    name: ` 联系人 ${index + 1} `,
+    phone: ` 1380000${String(index).padStart(4, '0')} `,
+    type: index % 2 === 0 ? 'finance' : 'business',
+  }));
 }
 
 function createStressSchema(count: number): VbenFormSchema[] {
@@ -365,6 +394,90 @@ function createStressSchema(count: number): VbenFormSchema[] {
     } as VbenFormSchema);
   }
 
+  schema.push({
+    addButtonText: '新增压测联系人',
+    arrayLayout: 'table',
+    children: [
+      {
+        component: 'Input',
+        componentProps: {
+          allowClear: true,
+          class: 'w-full',
+          size: 'small',
+        },
+        fieldName: 'name',
+        hideLabel: true,
+        label: '姓名',
+        rules: z.string().min(1, '请输入联系人姓名'),
+      },
+      {
+        component: 'Input',
+        componentProps: {
+          allowClear: true,
+          class: 'w-full',
+          size: 'small',
+        },
+        fieldName: 'phone',
+        hideLabel: true,
+        label: '手机号',
+      },
+      {
+        component: 'Select',
+        componentProps: {
+          class: 'w-full',
+          options: [
+            { label: '业务', value: 'business' },
+            { label: '财务', value: 'finance' },
+          ],
+          size: 'small',
+        },
+        fieldName: 'type',
+        hideLabel: true,
+        label: '类型',
+        rules: 'selectRequired',
+      },
+      {
+        component: 'Input',
+        componentProps: {
+          allowClear: true,
+          class: 'w-full',
+          size: 'small',
+        },
+        dependencies: {
+          required: (values: any) => values.$row?.type === 'finance',
+          rules: (values: any) =>
+            values.$row?.type === 'finance'
+              ? z.string().min(1, '财务联系人编号必填')
+              : z.string().optional(),
+          triggerFields: ['type'],
+        },
+        fieldName: 'code',
+        hideLabel: true,
+        label: '编号',
+      },
+    ],
+    component: 'Array',
+    copyable: true,
+    defaultValue: createStressContacts(8),
+    description: '用于观察数组多行输入、行内依赖和表格式布局性能。',
+    fieldName: 'contacts',
+    label: '数组压测联系人',
+    layoutProps: {
+      table: {
+        columns: [
+          { fieldName: 'name', label: '姓名', width: 160 },
+          { fieldName: 'phone', label: '手机号', width: 160 },
+          { fieldName: 'type', label: '类型', width: 140 },
+          { fieldName: 'code', label: '编号', width: 'minmax(180px, 1fr)' },
+        ],
+        minWidth: 760,
+      },
+    },
+    maxRows: 80,
+    minRows: 1,
+    sortable: true,
+  } as VbenFormSchema);
+
   return schema;
 }
 
@@ -400,6 +513,10 @@ const [Form, formApi] = useVbenForm({
   schema: initialSchema,
   scrollToFirstError: true,
   showDefaultActions: true,
+  submitValueTransform: {
+    removeEmpty: { emptyString: true },
+    trim: true,
+  },
   wrapperClass: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
 });
 
@@ -464,6 +581,50 @@ async function runAsyncRaceProbe() {
   message.success(`远程 options 竞态探针完成：${duration}ms`);
 }
 
+async function runArrayRowsBenchmark() {
+  const start = performance.now();
+  const contacts = createStressContacts(50);
+  await formApi.setFieldValue('contacts', contacts);
+  await waitFrame();
+  const duration = Math.round(performance.now() - start);
+  metrics.value = { ...metrics.value, arrayRows: contacts.length };
+  markMetric('arrayRows', duration);
+  await refreshOutput();
+  message.success(`数组 50 行写入完成：${duration}ms`);
+}
+
+async function runArrayInputBenchmark() {
+  const start = performance.now();
+  for (let index = 0; index < 12; index += 1) {
+    await formApi.setFieldValue(
+      `contacts[${index}].name`,
+      ` 批量联系人 ${index + 1} `,
+    );
+    await formApi.setFieldValue(
+      `contacts[${index}].type`,
+      index % 2 === 0 ? 'finance' : 'business',
+    );
+    await formApi.setFieldValue(
+      `contacts[${index}].code`,
+      index % 2 === 0 ? ` CODE-${index} ` : '',
+    );
+  }
+  await waitFrame();
+  const duration = Math.round(performance.now() - start);
+  markMetric('arrayInput', duration);
+  await refreshOutput();
+  message.success(`数组连续输入探针完成：${duration}ms`);
+}
+
+async function runSubmitBenchmark() {
+  const start = performance.now();
+  await formApi.submitForm();
+  await waitFrame();
+  const duration = Math.round(performance.now() - start);
+  markMetric('submit', duration);
+  message.success(`提交与清理耗时：${duration}ms`);
+}
+
 async function refreshRemoteOptions() {
   await formApi.refreshOptions('async.child');
   message.success('已刷新远程子级 options');
@@ -507,8 +668,11 @@ async function validateLargeForm() {
           <Button @click="runBatchSetValues">批量 setValues</Button>
           <Button @click="runNestedLoopProbe">嵌套写回探针</Button>
           <Button @click="runAsyncRaceProbe">远程竞态探针</Button>
+          <Button @click="runArrayRowsBenchmark">数组 50 行写入</Button>
+          <Button @click="runArrayInputBenchmark">数组连续输入</Button>
           <Button @click="refreshRemoteOptions">刷新远程 options</Button>
           <Button @click="validateLargeForm">校验性能</Button>
+          <Button @click="runSubmitBenchmark">提交清理性能</Button>
           <Button @click="refreshOutput">读取 values</Button>
         </Space>
       </div>
@@ -537,6 +701,9 @@ async function validateLargeForm() {
             校验耗时：<Tag>{{ metrics.validateMs }}ms</Tag>
           </div>
           <div>
+            提交清理：<Tag>{{ metrics.submitMs }}ms</Tag>
+          </div>
+          <div>
             最近耗时：<Tag>{{ metrics.lastRunMs }}ms</Tag>
           </div>
         </div>
@@ -561,6 +728,15 @@ async function validateLargeForm() {
         <div class="space-y-2 text-sm">
           <div>
             变化次数：<Tag color="blue">{{ metrics.valuesChangeCount }}</Tag>
+          </div>
+          <div>
+            数组行数：<Tag color="purple">{{ metrics.arrayRows }}</Tag>
+          </div>
+          <div>
+            数组写入：<Tag>{{ metrics.arrayRowsMs }}ms</Tag>
+          </div>
+          <div>
+            数组输入：<Tag>{{ metrics.arrayInputMs }}ms</Tag>
           </div>
           <div class="break-all">
             最近字段：{{ metrics.lastChangedFields.join(', ') || '-' }}

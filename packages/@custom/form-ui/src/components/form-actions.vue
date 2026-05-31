@@ -22,6 +22,12 @@ const submitButtonOptions = computed(() => ({
   content: `${$t.value('submit')}`,
   show: true,
   ...unref(rootProps).submitButtonOptions,
+  disabled:
+    unref(rootProps).submitting ||
+    unref(rootProps).submitButtonOptions?.disabled,
+  loading:
+    unref(rootProps).submitting ||
+    unref(rootProps).submitButtonOptions?.loading,
 }));
 
 async function handleSubmit(e: Event) {

@@ -4,6 +4,7 @@ import type {
   FormActions,
   FormSchema,
   Recordable,
+  SubmitValueTransformOptions,
   VbenFormProps,
 } from './types';
 
@@ -84,6 +85,8 @@ function escapeCssSelector(value: string) {
   return value.replaceAll(/["\\]/g, String.raw`\$&`);
 }
 
+const REMOVE_EMPTY_VALUE = Symbol('remove-empty-value');
+
 export class FormApi {
   public form = {} as FormActions;
   public isMounted = false;
@@ -95,6 +98,7 @@ export class FormApi {
   private mountedDeferred = createDeferred();
   private optionsQueryKeyMap: Map<string, unknown[]> = new Map();
   private prevState: null | VbenFormProps = null;
+  private submittingCount = 0;
   private validationErrorFields: Set<string> = new Set();
 
   constructor(options: VbenFormProps = {}) {
@@ -493,17 +497,31 @@ export class FormApi {
   async submitForm(e?: Event) {
     e?.preventDefault();
     e?.stopPropagation();
-    const validateResult = await this.validate();
-    if (!validateResult.valid) {
-      if (this.state?.scrollToFirstError) {
-        this.scrollToFirstError(validateResult.errors);
-      }
+
+    if (
+      this.state.preventDuplicateSubmit !== false &&
+      this.submittingCount > 0
+    ) {
       return;
     }
-    const rawValues = toRaw(await this.getValues());
-    this.setLatestSubmissionValues(rawValues);
-    await this.state.handleSubmit?.(rawValues);
-    return rawValues;
+
+    this.startSubmitting();
+    try {
+      const validateResult = await this.validate();
+      if (!validateResult.valid) {
+        if (this.state?.scrollToFirstError) {
+          this.scrollToFirstError(validateResult.errors);
+        }
+        return;
+      }
+      const rawValues = toRaw(await this.getValues());
+      const submissionValues = this.applySubmitValueTransform(rawValues);
+      this.setLatestSubmissionValues(submissionValues);
+      await this.state.handleSubmit?.(submissionValues);
+      return submissionValues;
+    } finally {
+      this.stopSubmitting();
+    }
   }
 
   async swapArrayItems(fieldName: string, aIndex: number, bIndex: number) {
@@ -517,6 +535,10 @@ export class FormApi {
     this.optionsQueryKeyMap = new Map();
     this.latestSubmissionValues = null;
     this.isMounted = false;
+    this.submittingCount = 0;
+    if (this.state.submitting) {
+      this.setState({ submitting: false });
+    }
     this.mountedDeferred = createDeferred();
   }
 
@@ -630,6 +652,20 @@ export class FormApi {
     return { errors, valid: false };
   }
 
+  private applySubmitValueTransform(values: Recordable<any>) {
+    const options = this.state.submitValueTransform;
+    if (!options?.trim && !options?.removeEmpty) {
+      return cloneDeep(toRaw(values));
+    }
+
+    const normalized = this.normalizeSubmitValue(
+      cloneDeep(toRaw(values)),
+      options,
+    );
+
+    return normalized === REMOVE_EMPTY_VALUE ? {} : normalized;
+  }
+
   private clearFieldErrors(form: FormActions, fieldName: string) {
     form.setFieldMeta?.(fieldName, (prev: any) => ({
       ...prev,
@@ -669,6 +705,30 @@ export class FormApi {
       return {};
     }
     return cloneDeep(schema.defaultItem ?? createDefaultItem(schema.children));
+  }
+
+  private createSubmitEmptyOptions(
+    options: SubmitValueTransformOptions['removeEmpty'],
+  ) {
+    if (!options) {
+      return {
+        emptyArray: false,
+        emptyObject: false,
+        emptyString: false,
+      };
+    }
+    if (options === true) {
+      return {
+        emptyArray: false,
+        emptyObject: false,
+        emptyString: true,
+      };
+    }
+    return {
+      emptyArray: !!options.emptyArray,
+      emptyObject: !!options.emptyObject,
+      emptyString: !!options.emptyString,
+    };
   }
 
   private deleteValueByFieldName(
@@ -860,6 +920,45 @@ export class FormApi {
     return pathSegments.length > 0;
   }
 
+  private normalizeSubmitValue(
+    value: any,
+    options: SubmitValueTransformOptions,
+  ): any {
+    const emptyOptions = this.createSubmitEmptyOptions(options.removeEmpty);
+
+    if (typeof value === 'string') {
+      const nextValue = options.trim ? value.trim() : value;
+      return emptyOptions.emptyString && nextValue === ''
+        ? REMOVE_EMPTY_VALUE
+        : nextValue;
+    }
+
+    if (Array.isArray(value)) {
+      const nextValue = value
+        .map((item) => this.normalizeSubmitValue(item, options))
+        .filter((item) => item !== REMOVE_EMPTY_VALUE);
+      return emptyOptions.emptyArray && nextValue.length === 0
+        ? REMOVE_EMPTY_VALUE
+        : nextValue;
+    }
+
+    if (!isMergeableObject(value)) {
+      return value;
+    }
+
+    const nextValue: Recordable<any> = {};
+    Object.entries(value).forEach(([key, item]) => {
+      const normalizedItem = this.normalizeSubmitValue(item, options);
+      if (normalizedItem !== REMOVE_EMPTY_VALUE) {
+        nextValue[key] = normalizedItem;
+      }
+    });
+
+    return emptyOptions.emptyObject && Object.keys(nextValue).length === 0
+      ? REMOVE_EMPTY_VALUE
+      : nextValue;
+  }
+
   private processFields = (
     fields: string[],
     separator: string,
@@ -1001,6 +1100,20 @@ export class FormApi {
       return;
     }
     set(values, fieldName, value);
+  }
+
+  private startSubmitting() {
+    this.submittingCount += 1;
+    if (!this.state.submitting) {
+      this.setState({ submitting: true });
+    }
+  }
+
+  private stopSubmitting() {
+    this.submittingCount = Math.max(0, this.submittingCount - 1);
+    if (this.submittingCount === 0 && this.state.submitting) {
+      this.setState({ submitting: false });
+    }
   }
 
   private syncValidationErrors(

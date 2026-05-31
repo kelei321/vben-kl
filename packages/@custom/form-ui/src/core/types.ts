@@ -226,6 +226,7 @@ export interface FormArraySchema<
   'asyncOptions' | 'componentProps' | 'renderComponentContent' | 'transform'
 > {
   addButtonText?: string;
+  arrayLayout?: 'card' | 'table' | 'tabs';
   children: FormSchema<T, P>[];
   childrenWrapperClass?: string;
   component: 'Array';
@@ -234,6 +235,25 @@ export interface FormArraySchema<
   copyValue?: (row: Recordable, index: number) => Recordable;
   defaultItem?: Recordable;
   defaultValue?: Recordable[];
+  layoutProps?: {
+    table?: {
+      columns?: Array<{
+        fieldName?: string;
+        label?: CustomRenderType;
+        required?: boolean;
+        width?: number | string;
+      }>;
+      compact?: boolean;
+      minWidth?: number | string;
+      showActions?: boolean;
+      showIndex?: boolean;
+    };
+    tabs?: {
+      fallbackTitle?: (index: number) => string;
+      titleField?: string;
+      type?: 'card' | 'line';
+    };
+  };
   maxRows?: number;
   minRows?: number;
   removeButtonText?: string;
@@ -264,6 +284,17 @@ export type HandleSubmitFn = (
 export type HandleResetFn = (
   values: Record<string, any>,
 ) => Promise<void> | void;
+
+export interface SubmitValueTransformOptions {
+  removeEmpty?:
+    | boolean
+    | {
+        emptyArray?: boolean;
+        emptyObject?: boolean;
+        emptyString?: boolean;
+      };
+  trim?: boolean;
+}
 
 export type FieldMappingTime = [
   string,
@@ -335,12 +366,15 @@ export interface VbenFormProps<
     values: Record<string, any>,
     fieldsChanged: string[],
   ) => void;
+  preventDuplicateSubmit?: boolean;
   resetButtonOptions?: ActionButtonOptions;
   scrollToFirstError?: boolean;
   showDefaultActions?: boolean;
   submitButtonOptions?: ActionButtonOptions;
   submitOnChange?: boolean;
   submitOnEnter?: boolean;
+  submitting?: boolean;
+  submitValueTransform?: SubmitValueTransformOptions;
   validateTrigger?: ValidateTrigger | ValidateTrigger[];
 }
 

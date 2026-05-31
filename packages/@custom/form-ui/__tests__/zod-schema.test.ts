@@ -34,8 +34,9 @@ function createMountedFormApi(
   schema: any[],
   values: Record<string, any>,
   formOverrides: Record<string, any> = {},
+  apiOptions: Record<string, any> = {},
 ) {
-  const formApi = new FormApi({ schema });
+  const formApi = new FormApi({ schema, ...apiOptions });
   const fieldMeta: Record<string, any> = {};
   const form = {
     state: { values },
@@ -48,6 +49,12 @@ function createMountedFormApi(
   formApi.mount(form as any);
 
   return { fieldMeta, formApi, values };
+}
+
+function flushPromises() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
 }
 
 describe('custom form zod schema builder', () => {
@@ -450,6 +457,241 @@ describe('custom form zod schema builder', () => {
       isValid: false,
     });
     expect(fieldMeta['contacts.0.taxNo']).toBeUndefined();
+  });
+
+  it('prevents duplicate submit by default and releases submitting state', async () => {
+    let resolveSubmit: (() => void) | undefined;
+    const handleSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+    const { formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          rules: z.string().min(1),
+        },
+      ],
+      { username: 'kelei' },
+      {},
+      { handleSubmit },
+    );
+
+    const firstSubmit = formApi.submitForm();
+    const secondSubmit = formApi.submitForm();
+    await flushPromises();
+
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    expect(formApi.getState().submitting).toBe(true);
+
+    resolveSubmit?.();
+    await firstSubmit;
+    await secondSubmit;
+
+    expect(formApi.getState().submitting).toBe(false);
+  });
+
+  it('allows concurrent submit when duplicate protection is disabled', async () => {
+    const pendingSubmits: Array<() => void> = [];
+    const handleSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingSubmits.push(resolve);
+        }),
+    );
+    const { formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          rules: z.string().min(1),
+        },
+      ],
+      { username: 'kelei' },
+      {},
+      { handleSubmit, preventDuplicateSubmit: false },
+    );
+
+    const firstSubmit = formApi.submitForm();
+    const secondSubmit = formApi.submitForm();
+    await flushPromises();
+
+    expect(handleSubmit).toHaveBeenCalledTimes(2);
+    expect(formApi.getState().submitting).toBe(true);
+
+    pendingSubmits.forEach((resolve) => resolve());
+    await Promise.all([firstSubmit, secondSubmit]);
+
+    expect(formApi.getState().submitting).toBe(false);
+  });
+
+  it('releases submitting state when submit handler throws', async () => {
+    const { formApi } = createMountedFormApi(
+      [
+        {
+          component: 'Input',
+          fieldName: 'username',
+          rules: z.string().min(1),
+        },
+      ],
+      { username: 'kelei' },
+      {},
+      {
+        handleSubmit: vi.fn(async () => {
+          throw new Error('submit failed');
+        }),
+      },
+    );
+
+    await expect(formApi.submitForm()).rejects.toThrow('submit failed');
+
+    expect(formApi.getState().submitting).toBe(false);
+  });
+
+  it('trims and removes empty submit values without mutating form state', async () => {
+    const handleSubmit = vi.fn();
+    const values = {
+      contacts: [
+        {
+          email: '   ',
+          name: '  张三  ',
+          nested: { empty: ' ', keep: ' value ' },
+          phone: ' 13800000000 ',
+        },
+      ],
+      emptyArray: [],
+      emptyObject: {},
+      enabled: false,
+      keyword: '  hello  ',
+      nullable: null,
+      tags: [' a ', ' ', 'b'],
+      total: 0,
+    };
+    const { formApi } = createMountedFormApi(
+      [
+        { component: 'Input', fieldName: 'keyword' },
+        { component: 'Input', fieldName: 'tags' },
+        {
+          children: [
+            { component: 'Input', fieldName: 'name' },
+            { component: 'Input', fieldName: 'phone' },
+            { component: 'Input', fieldName: 'email' },
+          ],
+          component: 'Array',
+          fieldName: 'contacts',
+        },
+      ],
+      values,
+      {},
+      {
+        handleSubmit,
+        submitValueTransform: {
+          removeEmpty: { emptyString: true },
+          trim: true,
+        },
+      },
+    );
+
+    const result = await formApi.submitForm();
+
+    expect(result).toEqual({
+      contacts: [
+        {
+          name: '张三',
+          nested: { keep: 'value' },
+          phone: '13800000000',
+        },
+      ],
+      emptyArray: [],
+      emptyObject: {},
+      enabled: false,
+      keyword: 'hello',
+      nullable: null,
+      tags: ['a', 'b'],
+      total: 0,
+    });
+    expect(handleSubmit).toHaveBeenCalledWith(result);
+    expect(values.keyword).toBe('  hello  ');
+    expect(values.contacts[0]?.name).toBe('  张三  ');
+  });
+
+  it('completes large form and array dependency benchmark scenarios', async () => {
+    const fieldSchema = Array.from({ length: 120 }, (_, index) => ({
+      component: 'Input',
+      dependencies:
+        index % 10 === 0
+          ? {
+              required: (values: any) => values.mode === 'strict',
+              rules: (values: any) =>
+                values.mode === 'strict'
+                  ? z.string().min(1, `Field ${index} is required`)
+                  : z.string().optional(),
+              triggerFields: ['mode'],
+            }
+          : undefined,
+      fieldName: `field${index}`,
+      rules: z.string().optional(),
+    }));
+    const rowValues = Array.from({ length: 50 }, (_, index) => ({
+      code: index % 2 === 0 ? ` code-${index} ` : '',
+      name: ` row-${index} `,
+      type: index % 2 === 0 ? 'finance' : 'business',
+    }));
+    const values = {
+      contacts: rowValues,
+      mode: 'normal',
+      ...Object.fromEntries(
+        fieldSchema.map((item, index) => [item.fieldName, ` value-${index} `]),
+      ),
+    };
+    const { formApi } = createMountedFormApi(
+      [
+        { component: 'Select', fieldName: 'mode' },
+        ...fieldSchema,
+        {
+          children: [
+            { component: 'Input', fieldName: 'name' },
+            { component: 'Select', fieldName: 'type' },
+            {
+              component: 'Input',
+              dependencies: {
+                required: (row: any) => row.$row?.type === 'finance',
+                rules: (row: any) =>
+                  row.$row?.type === 'finance'
+                    ? z.string().min(1, 'Code is required')
+                    : z.string().optional(),
+                triggerFields: ['type'],
+              },
+              fieldName: 'code',
+            },
+          ],
+          component: 'Array',
+          fieldName: 'contacts',
+        },
+      ],
+      values,
+      {},
+      {
+        handleSubmit: vi.fn(),
+        submitValueTransform: {
+          removeEmpty: { emptyString: true },
+          trim: true,
+        },
+      },
+    );
+
+    const start = performance.now();
+    const validateResult = await formApi.validate();
+    const submitResult = await formApi.submitForm();
+    const duration = performance.now() - start;
+
+    expect(validateResult.valid).toBe(true);
+    expect(submitResult?.contacts).toHaveLength(50);
+    expect(submitResult?.contacts[0]?.code).toBe('code-0');
+    expect(Number.isFinite(duration)).toBe(true);
   });
 
   it('handles array index paths', () => {

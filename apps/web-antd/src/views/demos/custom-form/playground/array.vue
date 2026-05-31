@@ -84,16 +84,23 @@ const contactChildren = [
   },
 ] as ContactFieldSchema[];
 
-const tableContactChildren = contactChildren.map((item) => ({
-  ...item,
-  componentProps: {
-    ...(typeof item.componentProps === 'object' ? item.componentProps : {}),
-    size: 'small',
-  },
-  hideLabel: true,
-  labelWidth: 0,
-  wrapperClass: 'w-full',
-})) as ContactFieldSchema[];
+const tableContactChildren = contactChildren.map((item) => {
+  const componentProps = (item as { componentProps?: unknown }).componentProps;
+
+  return {
+    ...item,
+    componentProps: {
+      ...(typeof componentProps === 'object' && componentProps
+        ? componentProps
+        : {}),
+      class: 'w-full',
+      size: 'small',
+    },
+    hideLabel: true,
+    labelWidth: 0,
+    wrapperClass: 'w-full',
+  };
+}) as ContactFieldSchema[];
 
 const linkageContactChildren = [
   ...contactChildren,
@@ -192,6 +199,43 @@ const [SlotArrayForm] = useVbenForm({
   wrapperClass: 'grid-cols-1',
 });
 
+const [TemplateTabsArrayForm] = useVbenForm({
+  commonConfig: {
+    componentProps: {
+      class: 'w-full',
+    },
+    labelWidth: 90,
+  },
+  handleSubmit(values) {
+    output.value = { action: 'template-tabs-submit', values };
+    message.success('页签模板数组表单提交成功');
+  },
+  schema: [
+    {
+      addButtonText: '新增联系人',
+      arrayLayout: 'tabs',
+      children: [...contactChildren],
+      childrenWrapperClass: 'grid grid-cols-1 gap-x-4 md:grid-cols-2',
+      component: 'Array',
+      copyable: true,
+      defaultValue: [...defaultContacts],
+      description: '通过 arrayLayout: tabs 使用内置页签模板。',
+      fieldName: 'contacts',
+      label: '联系人',
+      layoutProps: {
+        tabs: {
+          titleField: 'name',
+          type: 'card',
+        },
+      },
+      maxRows: 5,
+      minRows: 1,
+      sortable: true,
+    },
+  ],
+  wrapperClass: 'grid-cols-1',
+});
+
 const [TabsArrayForm] = useVbenForm({
   commonConfig: {
     componentProps: {
@@ -236,14 +280,25 @@ const [TableArrayForm] = useVbenForm({
   schema: [
     {
       addButtonText: '新增联系人',
+      arrayLayout: 'table',
       children: [...tableContactChildren],
-      childrenWrapperClass: 'grid grid-cols-1',
       component: 'Array',
       copyable: true,
       defaultValue: [...defaultContacts],
-      description: '适合多行快速录入的紧凑布局。',
+      description: '通过 arrayLayout: table 使用内置表格模板。',
       fieldName: 'contacts',
       label: '联系人',
+      layoutProps: {
+        table: {
+          columns: [
+            { fieldName: 'name', label: '姓名', width: 132 },
+            { fieldName: 'phone', label: '手机号', width: 144 },
+            { fieldName: 'type', label: '类型', width: 132 },
+            { fieldName: 'remark', label: '备注', width: 'minmax(208px, 1fr)' },
+          ],
+          minWidth: 760,
+        },
+      },
       maxRows: 8,
       minRows: 1,
       sortable: true,
@@ -358,13 +413,6 @@ async function handleApiAction(
 function resolveTypeLabel(type: string) {
   return contactTypeLabelMap[type] ?? '未选择';
 }
-
-function resolveTableCellRow(rowState: any, childState: any) {
-  return {
-    ...rowState,
-    children: [childState],
-  };
-}
 </script>
 
 <template>
@@ -423,6 +471,10 @@ function resolveTableCellRow(rowState: any, childState: any) {
           </div>
         </template>
       </SlotArrayForm>
+    </Card>
+
+    <Card title="Playground 数组内置模板 / 页签">
+      <TemplateTabsArrayForm />
     </Card>
 
     <Card title="Playground 数组自定义渲染 / Tabs">
@@ -489,72 +541,8 @@ function resolveTableCellRow(rowState: any, childState: any) {
       </TabsArrayForm>
     </Card>
 
-    <Card title="Playground 数组自定义渲染 / 表格式紧凑录入">
-      <TableArrayForm>
-        <template
-          #contacts-layout="{
-            actions,
-            arraySchema,
-            arrayRowActions,
-            arrayRowFields,
-            canAdd,
-            canRemove,
-            isDisabled,
-            rows,
-            rowsLength,
-          }"
-        >
-          <div class="space-y-3">
-            <div class="overflow-x-auto rounded-md border">
-              <div class="min-w-[936px]">
-                <div
-                  class="bg-muted/40 text-muted-foreground grid h-9 grid-cols-[48px_180px_180px_180px_minmax(220px,1fr)_128px] items-center border-b px-3 text-xs font-medium"
-                >
-                  <div>#</div>
-                  <div>姓名</div>
-                  <div>手机号</div>
-                  <div>类型</div>
-                  <div>备注</div>
-                  <div>操作</div>
-                </div>
-
-                <div
-                  v-for="rowState in rows"
-                  :key="rowState.rowKey"
-                  class="grid min-h-[68px] grid-cols-[48px_180px_180px_180px_minmax(220px,1fr)_128px] items-start border-b px-3 py-2 last:border-b-0"
-                >
-                  <div class="text-muted-foreground py-1.5 text-xs">
-                    {{ rowState.rowIndex + 1 }}
-                  </div>
-
-                  <component
-                    :is="arrayRowFields"
-                    v-for="childState in rowState.children"
-                    :key="childState.fieldName"
-                    :array-schema="arraySchema"
-                    :row-state="resolveTableCellRow(rowState, childState)"
-                  />
-
-                  <component
-                    :is="arrayRowActions"
-                    :actions="actions"
-                    :array-schema="arraySchema"
-                    :can-add="canAdd"
-                    :can-remove="canRemove"
-                    :is-disabled="isDisabled"
-                    :rows-length="rowsLength"
-                    :row-state="rowState"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Button :disabled="!canAdd" type="dashed" @click="actions.add()">
-              新增一行
-            </Button>
-          </div>
-        </template>
-      </TableArrayForm>
+    <Card title="Playground 数组内置模板 / 表格式紧凑录入">
+      <TableArrayForm />
     </Card>
 
     <Card title="Playground 数组联动校验">
