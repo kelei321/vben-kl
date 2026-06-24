@@ -145,15 +145,6 @@ export class FormApi {
     this.setState({ schema: currentSchema });
   }
 
-  async clearArrayItems(fieldName: string) {
-    const form = await this.getForm();
-    form.clearFieldValues?.(fieldName);
-  }
-
-  async clearField(fieldName: string) {
-    await this.setFieldValue(fieldName, undefined, true);
-  }
-
   async clearValidate(fields?: string | string[]) {
     const form = await this.getForm();
     let targetFields: string[] | undefined;
@@ -164,13 +155,15 @@ export class FormApi {
     }
     if (!targetFields) {
       form.setErrorMap?.({});
-      for (const field of this.collectValidationFields({})) {
-        this.clearFieldErrors(form, field);
-      }
       return;
     }
     for (const field of targetFields) {
-      this.clearFieldErrors(form, field);
+      form.setFieldMeta?.(field, (prev: any) => ({
+        ...prev,
+        errorMap: {},
+        errors: [],
+        isValid: true,
+      }));
     }
   }
 
@@ -395,17 +388,16 @@ export class FormApi {
       return;
     }
 
-    const componentRef = this.getFieldComponentRef(firstErrorFieldName) as any;
-    let el: HTMLElement | undefined;
-    if (componentRef instanceof HTMLElement) {
-      el = componentRef;
-    } else if (componentRef?.$el instanceof HTMLElement) {
-      el = componentRef.$el;
-    }
+    let el = document.querySelector(
+      `[name="${escapeCssSelector(firstErrorFieldName)}"]`,
+    ) as HTMLElement;
     if (!el) {
-      el = document.querySelector(
-        `[name="${escapeCssSelector(firstErrorFieldName)}"]`,
-      ) as HTMLElement;
+      const componentRef = this.getFieldComponentRef(
+        firstErrorFieldName,
+      ) as any;
+      if (componentRef?.$el instanceof HTMLElement) {
+        el = componentRef.$el;
+      }
     }
 
     el?.scrollIntoView({
@@ -417,11 +409,12 @@ export class FormApi {
 
   async setFieldError(fieldName: string, message?: string) {
     const form = await this.getForm();
-    if (message) {
-      this.setFieldErrors(form, fieldName, [message]);
-    } else {
-      this.clearFieldErrors(form, fieldName);
-    }
+    form.setFieldMeta?.(fieldName, (prev: any) => ({
+      ...prev,
+      errorMap: message ? { onSubmit: message } : {},
+      errors: message ? [message] : [],
+      isValid: !message,
+    }));
   }
 
   async setFieldValue(field: string, value: any, shouldValidate?: boolean) {
@@ -433,7 +426,7 @@ export class FormApi {
   }
 
   setLatestSubmissionValues(values: null | Recordable<any>) {
-    this.latestSubmissionValues = values ? cloneDeep(toRaw(values)) : null;
+    this.latestSubmissionValues = values ? { ...toRaw(values) } : null;
   }
 
   setSchema(schema: FormSchema[]) {
@@ -497,11 +490,7 @@ export class FormApi {
   async submitForm(e?: Event) {
     e?.preventDefault();
     e?.stopPropagation();
-
-    if (
-      this.state.preventDuplicateSubmit !== false &&
-      this.submittingCount > 0
-    ) {
+    if (this.state.preventDuplicateSubmit !== false && this.submittingCount > 0) {
       return;
     }
 
@@ -623,9 +612,7 @@ export class FormApi {
 
   async validateField(fieldName: string) {
     const form = await this.getForm();
-    const schema = (this.state.schema ?? []).find(
-      (item) => item.fieldName === fieldName,
-    );
+    const schema = this.findSchemaByFieldName(fieldName);
     if (!schema) {
       return { errors: {}, valid: true };
     }
@@ -645,7 +632,11 @@ export class FormApi {
       return { errors: {}, valid: true };
     }
     const errors = zodErrorToFieldErrors(result.error);
-    this.setFieldErrors(form, fieldName, errors[fieldName] ?? []);
+    const targetErrors = errors[fieldName] ?? [];
+    this.setFieldErrors(form, fieldName, targetErrors);
+    if (targetErrors.length === 0) {
+      return { errors, valid: true };
+    }
     if (this.state?.scrollToFirstError) {
       this.scrollToFirstError(fieldName);
     }
@@ -759,6 +750,20 @@ export class FormApi {
     if (lastPathSegment && target && isObject(target)) {
       Reflect.deleteProperty(target, lastPathSegment);
     }
+  }
+
+  private findSchemaByFieldName(fieldName: string) {
+    const schema = (this.state.schema ?? []).find(
+      (item) => item.fieldName === fieldName,
+    );
+    if (schema) {
+      return schema;
+    }
+
+    return (this.state.schema ?? []).find(
+      (item) =>
+        isFormArraySchema(item) && fieldName.startsWith(`${item.fieldName}[`),
+    );
   }
 
   private async getForm() {
