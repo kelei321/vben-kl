@@ -128,7 +128,10 @@ const [ArrayLinkageForm, formApi] = useVbenForm({
                 tech: '技术联系人',
               };
               const nextRemark = typeLabelMap[String(values.$row?.type)] ?? '';
-              await controller.setFieldValue(remarkField, nextRemark);
+              const currentRemark = await controller.getFieldValue(remarkField);
+              if (currentRemark !== nextRemark) {
+                await controller.setFieldValue(remarkField, nextRemark);
+              }
             },
             triggerFields: ['type'],
           },
