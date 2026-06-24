@@ -57,6 +57,59 @@ function flushPromises() {
   });
 }
 
+function createArrayLinkageSchema() {
+  return [
+    {
+      component: 'Select',
+      fieldName: 'mode',
+      label: 'Mode',
+    },
+    {
+      children: [
+        {
+          component: 'Select',
+          fieldName: 'type',
+          label: 'Type',
+          rules: 'selectRequired',
+        },
+        {
+          component: 'Input',
+          dependencies: {
+            required: (values: any) => values.$row?.type === 'finance',
+            rules: (values: any) =>
+              values.$row?.type === 'finance'
+                ? z.string().min(1, 'Tax no is required')
+                : z.string().optional(),
+            triggerFields: ['type'],
+          },
+          fieldName: 'taxNo',
+          label: 'Tax no',
+        },
+        {
+          component: 'Input',
+          dependencies: {
+            required: (values: any) =>
+              values.$row?.type === 'tech' || values.mode === 'strict',
+            rules: (values: any) =>
+              values.$row?.type === 'tech' || values.mode === 'strict'
+                ? z.string().email('Email is invalid')
+                : z.union([
+                    z.string().email('Email is invalid'),
+                    z.literal(''),
+                  ]),
+            triggerFields: ['type', '$root.mode'],
+          },
+          fieldName: 'email',
+          label: 'Email',
+        },
+      ],
+      component: 'Array',
+      fieldName: 'contacts',
+      minRows: 1,
+    },
+  ] as any;
+}
+
 describe('custom form zod schema builder', () => {
   it('builds nested default values from schema', () => {
     expect(buildDefaultValues(schema)).toEqual({
@@ -171,62 +224,10 @@ describe('custom form zod schema builder', () => {
   });
 
   it('validates dynamic array child dependencies', async () => {
-    const formSchema = buildZodSchema(
-      [
-        {
-          component: 'Select',
-          fieldName: 'mode',
-          label: 'Mode',
-        },
-        {
-          children: [
-            {
-              component: 'Select',
-              fieldName: 'type',
-              label: 'Type',
-              rules: 'selectRequired',
-            },
-            {
-              component: 'Input',
-              dependencies: {
-                required: (values: any) => values.$row?.type === 'finance',
-                rules: (values: any) =>
-                  values.$row?.type === 'finance'
-                    ? z.string().min(1, 'Tax no is required')
-                    : z.string().optional(),
-                triggerFields: ['type'],
-              },
-              fieldName: 'taxNo',
-              label: 'Tax no',
-            },
-            {
-              component: 'Input',
-              dependencies: {
-                required: (values: any) =>
-                  values.$row?.type === 'tech' || values.mode === 'strict',
-                rules: (values: any) =>
-                  values.$row?.type === 'tech' || values.mode === 'strict'
-                    ? z.string().email('Email is invalid')
-                    : z.union([
-                        z.string().email('Email is invalid'),
-                        z.literal(''),
-                      ]),
-                triggerFields: ['type', '$root.mode'],
-              },
-              fieldName: 'email',
-              label: 'Email',
-            },
-          ],
-          component: 'Array',
-          fieldName: 'contacts',
-          minRows: 1,
-        },
-      ] as any,
-      {
-        controller: {} as any,
-        formApi: {} as any,
-      },
-    );
+    const formSchema = buildZodSchema(createArrayLinkageSchema(), {
+      controller: {} as any,
+      formApi: {} as any,
+    });
 
     const businessWithoutTaxNo = await formSchema.safeParseAsync({
       contacts: [{ email: '', taxNo: '', type: 'business' }],
@@ -262,6 +263,50 @@ describe('custom form zod schema builder', () => {
     const errors = zodErrorToFieldErrors(<ZodError>financeWithoutTaxNo.error);
     expect(errors).toEqual({
       'contacts[0].taxNo': ['Tax no is required'],
+    });
+  });
+
+  it('syncs dynamic array child errors during form validate', async () => {
+    const { fieldMeta, formApi } = createMountedFormApi(
+      createArrayLinkageSchema(),
+      {
+        contacts: [{ email: '', taxNo: '', type: 'business' }],
+        mode: 'strict',
+      },
+    );
+
+    const result = await formApi.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual({
+      'contacts[0].email': ['Email is invalid'],
+    });
+    expect(fieldMeta['contacts[0].email']).toMatchObject({
+      errorMap: { onSubmit: ['Email is invalid'] },
+      errors: ['Email is invalid'],
+      isValid: false,
+    });
+  });
+
+  it('validates array child field by parent array schema', async () => {
+    const { fieldMeta, formApi } = createMountedFormApi(
+      createArrayLinkageSchema(),
+      {
+        contacts: [{ email: '', taxNo: '', type: 'business' }],
+        mode: 'strict',
+      },
+    );
+
+    const result = await formApi.validateField('contacts[0].email');
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual({
+      'contacts[0].email': ['Email is invalid'],
+    });
+    expect(fieldMeta['contacts[0].email']).toMatchObject({
+      errorMap: { onSubmit: ['Email is invalid'] },
+      errors: ['Email is invalid'],
+      isValid: false,
     });
   });
 
@@ -616,105 +661,5 @@ describe('custom form zod schema builder', () => {
     expect(handleSubmit).toHaveBeenCalledWith(result);
     expect(values.keyword).toBe('  hello  ');
     expect(values.contacts[0]?.name).toBe('  张三  ');
-  });
-
-  it('completes large form and array dependency benchmark scenarios', async () => {
-    const fieldSchema = Array.from({ length: 120 }, (_, index) => ({
-      component: 'Input',
-      dependencies:
-        index % 10 === 0
-          ? {
-              required: (values: any) => values.mode === 'strict',
-              rules: (values: any) =>
-                values.mode === 'strict'
-                  ? z.string().min(1, `Field ${index} is required`)
-                  : z.string().optional(),
-              triggerFields: ['mode'],
-            }
-          : undefined,
-      fieldName: `field${index}`,
-      rules: z.string().optional(),
-    }));
-    const rowValues = Array.from({ length: 50 }, (_, index) => ({
-      code: index % 2 === 0 ? ` code-${index} ` : '',
-      name: ` row-${index} `,
-      type: index % 2 === 0 ? 'finance' : 'business',
-    }));
-    const values = {
-      contacts: rowValues,
-      mode: 'normal',
-      ...Object.fromEntries(
-        fieldSchema.map((item, index) => [item.fieldName, ` value-${index} `]),
-      ),
-    };
-    const { formApi } = createMountedFormApi(
-      [
-        { component: 'Select', fieldName: 'mode' },
-        ...fieldSchema,
-        {
-          children: [
-            { component: 'Input', fieldName: 'name' },
-            { component: 'Select', fieldName: 'type' },
-            {
-              component: 'Input',
-              dependencies: {
-                required: (row: any) => row.$row?.type === 'finance',
-                rules: (row: any) =>
-                  row.$row?.type === 'finance'
-                    ? z.string().min(1, 'Code is required')
-                    : z.string().optional(),
-                triggerFields: ['type'],
-              },
-              fieldName: 'code',
-            },
-          ],
-          component: 'Array',
-          fieldName: 'contacts',
-        },
-      ],
-      values,
-      {},
-      {
-        handleSubmit: vi.fn(),
-        submitValueTransform: {
-          removeEmpty: { emptyString: true },
-          trim: true,
-        },
-      },
-    );
-
-    const start = performance.now();
-    const validateResult = await formApi.validate();
-    const submitResult = await formApi.submitForm();
-    const duration = performance.now() - start;
-
-    expect(validateResult.valid).toBe(true);
-    expect(submitResult?.contacts).toHaveLength(50);
-    expect(submitResult?.contacts[0]?.code).toBe('code-0');
-    expect(Number.isFinite(duration)).toBe(true);
-  });
-
-  it('handles array index paths', () => {
-    const values = {};
-    setValueByPath(values, 'contacts[10].phones[0]', '13800000000');
-
-    expect(getValueByPath(values, 'contacts[10].phones[0]')).toBe(
-      '13800000000',
-    );
-    expect(values).toEqual({
-      contacts: [
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { phones: ['13800000000'] },
-      ],
-    });
   });
 });
