@@ -52,6 +52,10 @@ function createDefaultDependencyState(): FieldDependencyState {
   };
 }
 
+function shouldSyncSchema(fieldName: string) {
+  return !fieldName.includes('[');
+}
+
 export default function useDependencies(
   fieldName: string,
   getDependencies: () => FormItemDependencies | undefined,
@@ -77,7 +81,7 @@ export default function useDependencies(
 
   watch(
     [triggerFieldSignature, () => getDependencies()],
-    async ([_signature, dependencies], oldValue) => {
+    async ([signature, dependencies], oldValue) => {
       const oldSignature = oldValue?.[0];
       const currentEffectId = ++effectId;
       if (!dependencies || !dependencies?.triggerFields?.length) {
@@ -179,7 +183,7 @@ export default function useDependencies(
 
       state.value = { ...nextState };
 
-      if (Object.keys(schemaPatch).length > 1) {
+      if (Object.keys(schemaPatch).length > 1 && shouldSyncSchema(fieldName)) {
         controller.updateSchema?.([schemaPatch]);
       }
 
@@ -188,10 +192,9 @@ export default function useDependencies(
       }
 
       const isInitialRun = oldSignature === undefined;
-      if (isInitialRun && !triggerOnMount) {
-        return;
-      }
-      if (isTriggerRunning.value) {
+      const signatureChanged = oldSignature !== signature;
+      const shouldRunTrigger = isInitialRun ? triggerOnMount : signatureChanged;
+      if (!shouldRunTrigger || isTriggerRunning.value) {
         return;
       }
 
